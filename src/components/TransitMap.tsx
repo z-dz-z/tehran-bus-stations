@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
-import maplibregl, { type Map, type GeoJSONSource } from 'maplibre-gl';
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
+import maplibregl, { type Map as MapLibreMap, type GeoJSONSource } from 'maplibre-gl';
 import type { RouteData } from '../types';
 
 export interface TransitMapHandle {
@@ -9,7 +9,7 @@ export interface TransitMapHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   resetNorth: () => void;
-  getMap: () => Map | null;
+  getMap: () => MapLibreMap | null;
 }
 
 interface TransitMapProps {
@@ -32,10 +32,24 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
     ref
   ) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<Map | null>(null);
+    const mapRef = useRef<MapLibreMap | null>(null);
     const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+    const selectedMarkerRef = useRef<maplibregl.Marker | null>(null);
     const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
     const [mapLoaded, setMapLoaded] = useState(false);
+
+    // Fast coordinate lookup for stations by stationCode
+    const stationCoordsMap = useMemo(() => {
+      const map = new Map<number, [number, number]>();
+      if (!stationsGeoJson) return map;
+      for (const f of stationsGeoJson.features) {
+        const code = f.properties?.code;
+        if (typeof code === 'number' && f.geometry?.coordinates) {
+          map.set(code, f.geometry.coordinates as [number, number]);
+        }
+      }
+      return map;
+    }, [stationsGeoJson]);
 
     // Keep reference to latest callback to avoid stale closures in event listeners
     const onSelectStationRef = useRef(onSelectStation);
@@ -290,6 +304,8 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       return () => {
         hoverPopupRef.current?.remove();
         userMarkerRef.current?.remove();
+        selectedMarkerRef.current?.remove();
+        selectedMarkerRef.current = null;
         map.remove();
         mapRef.current = null;
         setMapLoaded(false);
@@ -339,6 +355,51 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       }
     }, [mapLoaded, activeRoute]);
 
+    // Synchronize elevated teardrop pin marker for selected station
+    useEffect(() => {
+      if (!mapLoaded || !mapRef.current) return;
+      const map = mapRef.current;
+
+      if (selectedStationCode === null) {
+        selectedMarkerRef.current?.remove();
+        selectedMarkerRef.current = null;
+        return;
+      }
+
+      const coords = stationCoordsMap.get(selectedStationCode);
+      if (!coords) {
+        selectedMarkerRef.current?.remove();
+        selectedMarkerRef.current = null;
+        return;
+      }
+
+      if (!selectedMarkerRef.current) {
+        const el = document.createElement('div');
+        el.className = 'relative flex flex-col items-center justify-center pointer-events-none select-none';
+        el.innerHTML = `
+          <div class="relative flex flex-col items-center justify-center -translate-y-4">
+            <!-- Base pulse halo in warm orange -->
+            <div class="absolute bottom-0 w-8 h-8 rounded-full bg-orange-500/30 animate-ping"></div>
+            <div class="absolute bottom-0.5 w-3.5 h-1.5 rounded-full bg-slate-900/25 blur-[1px]"></div>
+            <!-- Elevated Persian Orange Teardrop Pin -->
+            <div class="relative flex items-center justify-center drop-shadow-md transition-transform duration-300 transform scale-100">
+              <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="#ea580c"/>
+                <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" stroke="#ffffff" stroke-width="1.5"/>
+                <circle cx="14" cy="14" r="5.5" fill="#ffffff"/>
+                <circle cx="14" cy="14" r="3" fill="#ea580c"/>
+              </svg>
+            </div>
+          </div>
+        `;
+        selectedMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat(coords)
+          .addTo(map);
+      } else {
+        selectedMarkerRef.current.setLngLat(coords);
+      }
+    }, [mapLoaded, selectedStationCode, stationCoordsMap]);
+
     // Update station circle paint properties for selected station and route filtering
     const updateStationStyles = useCallback(() => {
       if (!mapLoaded) return;
@@ -354,26 +415,26 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         ['linear'],
         ['zoom'],
         11.5,
-        ['case', ['==', codeExpr, selected], 7, 2.5],
+        ['case', ['==', codeExpr, selected], 5, 2.5],
         13,
-        ['case', ['==', codeExpr, selected], 9, 5],
+        ['case', ['==', codeExpr, selected], 7, 5],
         15,
-        ['case', ['==', codeExpr, selected], 11, 7.5],
+        ['case', ['==', codeExpr, selected], 9, 7.5],
       ]);
 
-      // 2. Circle color: selected is blue (#2563eb), regular is orange (#f97316)
+      // 2. Circle color: selected is deep orange (#ea580c), regular is orange (#f97316)
       map.setPaintProperty('stations-circle', 'circle-color', [
         'case',
         ['==', codeExpr, selected],
-        '#2563eb',
+        '#ea580c',
         '#f97316',
       ]);
 
-      // 3. Circle stroke width: selected gets 3px
+      // 3. Circle stroke width: selected gets 2.5px
       map.setPaintProperty('stations-circle', 'circle-stroke-width', [
         'case',
         ['==', codeExpr, selected],
-        3,
+        2.5,
         1.5,
       ]);
 

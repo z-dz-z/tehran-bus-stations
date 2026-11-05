@@ -123,3 +123,21 @@ describe('Live Transit API Integration', () => {
   });
 });
 
+describe('Color System & Map Marker Integrity', () => {
+  it('ensures TransitMap source code strictly reserves blue (#2563eb) for user GPS location', () => {
+    const transitMapSrc = fs.readFileSync(
+      path.resolve(__dirname, '../src/components/TransitMap.tsx'),
+      'utf-8'
+    );
+
+    // Selected station paint property must NOT be blue (#2563eb)
+    expect(transitMapSrc).not.toContain("'#2563eb',\n        '#f97316'");
+    // Station circle selection color must be in the orange family (#ea580c)
+    expect(transitMapSrc).toContain('#ea580c');
+    // Elevated teardrop pin must be implemented with orange fill
+    expect(transitMapSrc).toContain('fill="#ea580c"');
+    // User marker must remain the sole user of blue-600
+    expect(transitMapSrc).toContain('bg-blue-600 border-2 border-white');
+  });
+});
+

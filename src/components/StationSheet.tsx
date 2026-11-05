@@ -125,7 +125,7 @@ export const StationSheet: React.FC<StationSheetProps> = ({
       >
         <div className="min-w-0 pr-0.5">
           <div className="flex items-center gap-1.5">
-            <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
+            <MapPin className="w-4 h-4 text-orange-600 shrink-0" />
             <h1 className="text-sm sm:text-base font-black text-slate-800 truncate">
               {stationName}
             </h1>
