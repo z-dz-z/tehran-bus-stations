@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import maplibregl, { type Map as MapLibreMap, type GeoJSONSource } from 'maplibre-gl';
 import type { RouteData } from '../types';
+import { findClosestStation, getHitRadius } from '../utils/mapHitTest';
 
 export interface TransitMapHandle {
   flyToStation: (lon: number, lat: number, zoom?: number) => void;
@@ -298,17 +299,33 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           },
         });
 
-        // Interactions: Click on station circle
-        map.on('click', 'stations-circle', (e) => {
-          if (!e.features || e.features.length === 0) return;
-          const feat = e.features[0];
-          const code = feat.properties?.code;
-          if (typeof code === 'number') {
-            onSelectStationRef.current(code);
-            const geom = feat.geometry as GeoJSON.Point;
-            if (map.getZoom() < 14 && geom?.coordinates) {
+        // Fat-finger hit-testing for comfortable station selection on touch & mobile
+        map.on('click', (e) => {
+          if (map.getZoom() < 11.5) return;
+
+          const hitRadius = getHitRadius(e.originalEvent);
+          const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+            [e.point.x - hitRadius, e.point.y - hitRadius],
+            [e.point.x + hitRadius, e.point.y + hitRadius],
+          ];
+
+          const candidateFeatures = map.queryRenderedFeatures(bbox, {
+            layers: ['stations-circle'],
+          });
+
+          const closest = findClosestStation(
+            e.point,
+            candidateFeatures,
+            (coords) => map.project(coords),
+            hitRadius
+          );
+
+          if (closest) {
+            hoverPopupRef.current?.remove();
+            onSelectStationRef.current(closest.code);
+            if (map.getZoom() < 14) {
               map.easeTo({
-                center: [geom.coordinates[0], geom.coordinates[1]],
+                center: closest.coords,
                 zoom: 14.8,
                 duration: 600,
                 padding: { top: 70, bottom: 270, left: 20, right: 20 },
@@ -317,26 +334,50 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           }
         });
 
-        // Cursor style & hover popup
-        map.on('mouseenter', 'stations-circle', (e) => {
-          map.getCanvas().style.cursor = 'pointer';
-          if (e.features && e.features[0] && hoverPopupRef.current) {
-            const feat = e.features[0];
-            const name = feat.properties?.name || '';
-            const code = feat.properties?.code || '';
-            const geom = feat.geometry as GeoJSON.Point;
-            if (geom?.coordinates) {
+        // Pointer cursor feedback & hover popup for mouse/desktop users
+        map.on('mousemove', (e) => {
+          if (map.getZoom() < 11.5) {
+            map.getCanvas().style.cursor = '';
+            hoverPopupRef.current?.remove();
+            return;
+          }
+
+          const hoverRadius = 18;
+          const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+            [e.point.x - hoverRadius, e.point.y - hoverRadius],
+            [e.point.x + hoverRadius, e.point.y + hoverRadius],
+          ];
+
+          const candidateFeatures = map.queryRenderedFeatures(bbox, {
+            layers: ['stations-circle'],
+          });
+
+          const closest = findClosestStation(
+            e.point,
+            candidateFeatures,
+            (coords) => map.project(coords),
+            hoverRadius
+          );
+
+          if (closest) {
+            map.getCanvas().style.cursor = 'pointer';
+            if (hoverPopupRef.current) {
+              const name = closest.feature.properties?.name || '';
+              const code = closest.code;
               hoverPopupRef.current
-                .setLngLat(geom.coordinates as [number, number])
+                .setLngLat(closest.coords)
                 .setHTML(
                   `<div class="text-xs font-semibold text-slate-800">${name}</div><div class="text-[11px] text-slate-500 font-mono mt-0.5">کد: ${code}</div>`
                 )
                 .addTo(map);
             }
+          } else {
+            map.getCanvas().style.cursor = '';
+            hoverPopupRef.current?.remove();
           }
         });
 
-        map.on('mouseleave', 'stations-circle', () => {
+        map.on('mouseleave', () => {
           map.getCanvas().style.cursor = '';
           hoverPopupRef.current?.remove();
         });
