@@ -373,7 +373,6 @@ export const App: React.FC = () => {
           onLocateUser={(lon, lat) => mapRef.current?.flyToUserLocation(lon, lat)}
           onZoomIn={() => mapRef.current?.zoomIn()}
           onZoomOut={() => mapRef.current?.zoomOut()}
-          onResetNorth={() => mapRef.current?.resetNorth()}
         />
       </div>
 

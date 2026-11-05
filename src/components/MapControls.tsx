@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
-import { Compass, Crosshair, Plus, Minus, Loader2 } from 'lucide-react';
+import { Crosshair, Plus, Minus, Loader2 } from 'lucide-react';
 
 interface MapControlsProps {
   onLocateUser: (lon: number, lat: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onResetNorth: () => void;
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({
   onLocateUser,
   onZoomIn,
   onZoomOut,
-  onResetNorth,
 }) => {
   const [isLocating, setIsLocating] = useState(false);
 
@@ -55,15 +53,6 @@ export const MapControls: React.FC<MapControlsProps> = ({
         ) : (
           <Crosshair className="w-5 h-5" />
         )}
-      </button>
-
-      {/* Compass / Reset North */}
-      <button
-        onClick={onResetNorth}
-        title="چرخش به سمت شمال"
-        className="w-11 h-11 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200/80 flex items-center justify-center text-slate-700 hover:text-emerald-600 hover:bg-white active:scale-95 transition-all"
-      >
-        <Compass className="w-5 h-5 text-rose-500" />
       </button>
 
       {/* Zoom In & Zoom Out */}
