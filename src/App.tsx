@@ -288,15 +288,6 @@ export const App: React.FC = () => {
     handleSelectStation(fav.stationCode, fav.routeCode);
   };
 
-  // Proactively trigger map resize when initial loading finishes
-  useEffect(() => {
-    if (!initialLoading) {
-      mapRef.current?.resize();
-      const t = setTimeout(() => mapRef.current?.resize(), 120);
-      return () => clearTimeout(t);
-    }
-  }, [initialLoading]);
-
   if (loadError) {
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">

@@ -172,6 +172,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         minZoom: 8,
         maxZoom: 19,
         attributionControl: false,
+        trackResize: false, // Managed deterministically via ResizeObserver
       });
 
       map.on('error', (e) => {
@@ -345,43 +346,14 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
 
       // Set up a dedicated ResizeObserver that reliably resizes the canvas on any dimension change
       const resizeObserver = new ResizeObserver(() => {
-        if (mapRef.current) {
-          mapRef.current.resize();
-        }
+        mapRef.current?.resize();
       });
       if (mapContainerRef.current) {
         resizeObserver.observe(mapContainerRef.current);
       }
 
-      // Schedule proactive resize triggers for layout passes and font loading
-      const rAF = requestAnimationFrame(() => {
-        map.resize();
-      });
-      const t1 = setTimeout(() => map.resize(), 100);
-      const t2 = setTimeout(() => map.resize(), 400);
-      const t3 = setTimeout(() => map.resize(), 1000);
-
-      // Handle tab visibility and mobile orientation changes
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && mapRef.current) {
-          mapRef.current.resize();
-        }
-      };
-      const handleOrientationChange = () => {
-        setTimeout(() => mapRef.current?.resize(), 150);
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('orientationchange', handleOrientationChange);
-
       return () => {
-        cancelAnimationFrame(rAF);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
         resizeObserver.disconnect();
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('orientationchange', handleOrientationChange);
-
         hoverPopupRef.current?.remove();
         userMarkerRef.current?.remove();
         selectedPulseRef.current?.remove();
