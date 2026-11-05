@@ -34,7 +34,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<MapLibreMap | null>(null);
     const userMarkerRef = useRef<maplibregl.Marker | null>(null);
-    const selectedMarkerRef = useRef<maplibregl.Marker | null>(null);
+    const selectedPulseRef = useRef<maplibregl.Marker | null>(null);
     const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
     const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -313,8 +313,8 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       return () => {
         hoverPopupRef.current?.remove();
         userMarkerRef.current?.remove();
-        selectedMarkerRef.current?.remove();
-        selectedMarkerRef.current = null;
+        selectedPulseRef.current?.remove();
+        selectedPulseRef.current = null;
         map.remove();
         mapRef.current = null;
         setMapLoaded(false);
@@ -364,48 +364,40 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       }
     }, [mapLoaded, activeRoute]);
 
-    // Synchronize elevated teardrop pin marker for selected station
+    // Synchronize square-ish selected station badge with concentric pulse
     useEffect(() => {
       if (!mapLoaded || !mapRef.current) return;
       const map = mapRef.current;
 
       if (selectedStationCode === null) {
-        selectedMarkerRef.current?.remove();
-        selectedMarkerRef.current = null;
+        selectedPulseRef.current?.remove();
+        selectedPulseRef.current = null;
         return;
       }
 
       const coords = stationCoordsMap.get(selectedStationCode);
       if (!coords) {
-        selectedMarkerRef.current?.remove();
-        selectedMarkerRef.current = null;
+        selectedPulseRef.current?.remove();
+        selectedPulseRef.current = null;
         return;
       }
 
-      if (!selectedMarkerRef.current) {
+      if (!selectedPulseRef.current) {
         const el = document.createElement('div');
-        el.className = 'relative flex flex-col items-center justify-center pointer-events-none select-none';
+        el.className = 'relative flex items-center justify-center pointer-events-none select-none';
         el.innerHTML = `
-          <div class="relative flex flex-col items-center justify-center -translate-y-4">
-            <!-- Base pulse halo in warm orange -->
-            <div class="absolute bottom-0 w-8 h-8 rounded-full bg-orange-500/30 animate-ping"></div>
-            <div class="absolute bottom-0.5 w-3.5 h-1.5 rounded-full bg-slate-900/25 blur-[1px]"></div>
-            <!-- Elevated Persian Orange Teardrop Pin -->
-            <div class="relative flex items-center justify-center drop-shadow-md transition-transform duration-300 transform scale-100">
-              <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="#ea580c"/>
-                <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" stroke="#ffffff" stroke-width="1.5"/>
-                <circle cx="14" cy="14" r="5.5" fill="#ffffff"/>
-                <circle cx="14" cy="14" r="3" fill="#ea580c"/>
-              </svg>
-            </div>
-          </div>
+          <!-- Concentric square-ish pulse halo -->
+          <div class="absolute w-8 h-8 rounded-lg bg-orange-500/35 animate-ping"></div>
+          <div class="absolute w-6 h-6 rounded-md bg-orange-400/20 animate-pulse"></div>
+
+          <!-- Square-ish selected station badge -->
+          <div class="relative w-4 h-4 rounded-[4px] bg-[#ea580c] border-2 border-white shadow-md"></div>
         `;
-        selectedMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        selectedPulseRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat(coords)
           .addTo(map);
       } else {
-        selectedMarkerRef.current.setLngLat(coords);
+        selectedPulseRef.current.setLngLat(coords);
       }
     }, [mapLoaded, selectedStationCode, stationCoordsMap]);
 
@@ -418,17 +410,17 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       const selected = selectedStationCode ?? -1;
       const codeExpr = ['coalesce', ['get', 'code'], -1];
 
-      // 1. Circle radius: top-level must be interpolate because zoom expressions cannot be nested
+      // 1. Circle radius: reduce selected circle size so it sits comfortably inside the 16x16px square badge
       map.setPaintProperty('stations-circle', 'circle-radius', [
         'interpolate',
         ['linear'],
         ['zoom'],
         11.5,
-        ['case', ['==', codeExpr, selected], 5, 2.5],
+        ['case', ['==', codeExpr, selected], 4, 2.5],
         13,
-        ['case', ['==', codeExpr, selected], 7, 5],
+        ['case', ['==', codeExpr, selected], 5, 5],
         15,
-        ['case', ['==', codeExpr, selected], 9, 7.5],
+        ['case', ['==', codeExpr, selected], 6, 7.5],
       ]);
 
       // 2. Circle color: selected is deep orange (#ea580c), regular is orange (#f97316)
@@ -439,42 +431,26 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         '#f97316',
       ]);
 
-      // 3. Circle stroke width: selected gets 2.5px
-      map.setPaintProperty('stations-circle', 'circle-stroke-width', [
-        'case',
-        ['==', codeExpr, selected],
-        2.5,
-        1.5,
-      ]);
+      // 3. Circle stroke width
+      map.setPaintProperty('stations-circle', 'circle-stroke-width', 1.5);
 
-      // 4. Dim unrelated stations if a route is active
+      // Always maintain full opacity for visible stations
+      map.setPaintProperty('stations-circle', 'circle-opacity', 1.0);
+      map.setPaintProperty('stations-circle', 'circle-stroke-opacity', 1.0);
+
+      // 4. Filter unrelated stations: show ONLY active route stations + selected station
       if (activeRouteStationCodes && activeRouteStationCodes.length > 0) {
-        const inRouteExpr = [
+        const allowed = selectedStationCode !== null
+          ? Array.from(new Set([...activeRouteStationCodes, selectedStationCode]))
+          : activeRouteStationCodes;
+
+        map.setFilter('stations-circle', [
           'in',
           codeExpr,
-          ['literal', activeRouteStationCodes],
-        ];
-
-        map.setPaintProperty('stations-circle', 'circle-opacity', [
-          'case',
-          ['==', codeExpr, selected],
-          1.0,
-          inRouteExpr,
-          1.0,
-          0.35,
-        ]);
-
-        map.setPaintProperty('stations-circle', 'circle-stroke-opacity', [
-          'case',
-          ['==', codeExpr, selected],
-          1.0,
-          inRouteExpr,
-          1.0,
-          0.35,
-        ]);
+          ['literal', allowed],
+        ] as any);
       } else {
-        map.setPaintProperty('stations-circle', 'circle-opacity', 1.0);
-        map.setPaintProperty('stations-circle', 'circle-stroke-opacity', 1.0);
+        map.setFilter('stations-circle', null);
       }
     }, [mapLoaded, selectedStationCode, activeRouteStationCodes]);
 

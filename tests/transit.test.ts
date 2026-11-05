@@ -152,7 +152,7 @@ describe('Direction Normalization', () => {
 });
 
 describe('Color System & Map Marker Integrity', () => {
-  it('ensures TransitMap source code strictly reserves blue (#2563eb) for user GPS location', () => {
+  it('ensures TransitMap source code strictly reserves blue (#2563eb) for user GPS location and isolates route stations', () => {
     const transitMapSrc = fs.readFileSync(
       path.resolve(__dirname, '../src/components/TransitMap.tsx'),
       'utf-8'
@@ -162,8 +162,14 @@ describe('Color System & Map Marker Integrity', () => {
     expect(transitMapSrc).not.toContain("'#2563eb',\n        '#f97316'");
     // Station circle selection color must be in the orange family (#ea580c)
     expect(transitMapSrc).toContain('#ea580c');
-    // Elevated teardrop pin must be implemented with orange fill
-    expect(transitMapSrc).toContain('fill="#ea580c"');
+    // Elevated teardrop pin SVG must be removed
+    expect(transitMapSrc).not.toContain('<svg width="28" height="36"');
+    // Selected station features square-ish badge and pulsating halo
+    expect(transitMapSrc).toContain('rounded-[4px]');
+    expect(transitMapSrc).toContain('animate-ping');
+    // Unrelated stations are completely filtered out, not partially dimmed to 0.35
+    expect(transitMapSrc).not.toContain('0.35');
+    expect(transitMapSrc).toContain("map.setFilter('stations-circle'");
     // User marker must remain the sole user of blue-600
     expect(transitMapSrc).toContain('bg-blue-600 border-2 border-white');
   });
