@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, RefreshCw, Share2, Check, MapPin, Bus, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { X, MapPin, Bus } from 'lucide-react';
 import type { RouteData, BusStopETARoute } from '../types';
 import { BusCard } from './BusCard';
 import { toPersianDigits } from '../utils/format';
@@ -14,7 +14,7 @@ interface StationSheetProps {
   isLoadingETA: boolean;
   onSelectRoute: (route: RouteData) => void;
   onClose: () => void;
-  onRefreshETA: () => void;
+  onRefreshETA?: () => void;
   isFavorite: (stationCode: number, routeCode: number) => boolean;
   onToggleFavorite: (stationCode: number, routeCode: number, destName: string) => void;
   onOpenTimetable: (route: RouteData) => void;
@@ -34,17 +34,14 @@ export const StationSheet: React.FC<StationSheetProps> = ({
   isLoadingETA,
   onSelectRoute,
   onClose,
-  onRefreshETA,
   isFavorite,
   onToggleFavorite,
   onOpenTimetable,
   onFitRoute,
-  lastUpdated,
   isMinimized: propIsMinimized,
   onToggleMinimize,
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [internalMinimized, setInternalMinimized] = useState(false);
+  const [internalMinimized, setInternalMinimized] = React.useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -59,19 +56,6 @@ export const StationSheet: React.FC<StationSheetProps> = ({
   useEffect(() => {
     setMinimizedState(false);
   }, [stationCode]);
-
-  const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = new URL(window.location.href);
-    url.searchParams.set('stop', String(stationCode));
-    if (activeRoute) {
-      url.searchParams.set('route', String(activeRoute.code));
-    }
-    navigator.clipboard.writeText(url.toString()).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
 
   // Touch gesture handlers on handle / header
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -122,8 +106,8 @@ export const StationSheet: React.FC<StationSheetProps> = ({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         aria-label={isMinimized ? 'نمایش اطلاعات ایستگاه' : 'کوچک‌کردن پنل ایستگاه'}
-        title={isMinimized ? 'برای گسترش لمس کنید' : 'برای بستن به پایین بکشید یا لمس کنید'}
-        className="w-full pt-1 pb-1.5 flex flex-col items-center justify-center cursor-pointer group touch-none select-none focus:outline-none"
+        title={isMinimized ? 'برای گسترش لمس یا کلیک کنید' : 'برای بستن به پایین بکشید یا لمس کنید'}
+        className="w-full pt-1.5 pb-2 flex flex-col items-center justify-center cursor-pointer group touch-none select-none focus:outline-none"
       >
         <div className="w-10 h-1.5 bg-slate-300 group-hover:bg-slate-400 rounded-full transition-colors" />
       </button>
@@ -149,10 +133,10 @@ export const StationSheet: React.FC<StationSheetProps> = ({
               کد {toPersianDigits(stationCode)}
             </span>
             <span
-              title="به‌روزرسانی زنده خودکار هر ۳۰ ثانیه"
+              title="به‌روزرسانی زنده خودکار هر ۲۰ ثانیه"
               className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-1.5 py-0.5 rounded-md flex items-center gap-1 shrink-0"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-500 ${isLoadingETA ? 'animate-ping' : 'animate-pulse'}`} />
               زنده
             </span>
           </div>
@@ -163,63 +147,15 @@ export const StationSheet: React.FC<StationSheetProps> = ({
           )}
         </div>
 
-        {/* Header Actions */}
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* Toggle Minimize/Expand Button */}
+        {/* Header Actions - Just Close Button */}
+        <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => setMinimizedState(!isMinimized)}
-            title={isMinimized ? 'نمایش اطلاعات و خطوط' : 'کوچک‌کردن پنل'}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all"
-            aria-expanded={!isMinimized}
-          >
-            {isMinimized ? (
-              <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
-            ) : (
-              <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
-            )}
-          </button>
-
-          {/* Share Button (shown when not minimized) */}
-          {!isMinimized && (
-            <button
-              onClick={handleShare}
-              title="کپی لینک اشتراک‌گذاری این ایستگاه"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all relative"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <Share2 className="w-4 h-4" />
-              )}
-              {copied && (
-                <span className="absolute -top-7 right-1/2 translate-x-1/2 bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-md whitespace-nowrap shadow-md">
-                  کپی شد!
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Refresh ETA Button (shown when not minimized) */}
-          {!isMinimized && (
-            <button
-              onClick={onRefreshETA}
-              disabled={isLoadingETA}
-              title={`به‌روزرسانی زمان ورود (خودکار هر ۳۰ ثانیه)${lastUpdated ? `\nآخرین به‌روزرسانی: ${lastUpdated.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isLoadingETA ? 'animate-spin text-emerald-600' : ''}`}
-              />
-            </button>
-          )}
-
-          {/* Close Button */}
-          <button
+            type="button"
             onClick={onClose}
             title="بستن"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
           >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -248,6 +184,7 @@ export const StationSheet: React.FC<StationSheetProps> = ({
               return (
                 <div key={rt.id} data-route-id={rt.id} className="snap-start shrink-0">
                   <BusCard
+                    stationCode={stationCode}
                     route={rt}
                     isActive={active}
                     isFavorite={fav}

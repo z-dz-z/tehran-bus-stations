@@ -177,7 +177,7 @@ export const App: React.FC = () => {
     [transitData, syncUrlParams, fetchETA]
   );
 
-  // Auto-refresh ETA every 30 seconds while station is selected, plus on tab focus/visibility
+  // Auto-refresh ETA every 20 seconds while station is selected, plus on tab focus/visibility
   useEffect(() => {
     if (selectedStationCode === null) return;
 
@@ -188,7 +188,7 @@ export const App: React.FC = () => {
       if (!document.hidden) {
         fetchETA(selectedStationCode);
       }
-    }, 30000);
+    }, 20000);
 
     const handleVisibility = () => {
       if (!document.hidden && selectedStationCode !== null) {

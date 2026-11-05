@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, X, ChevronDown } from 'lucide-react';
+import { Star, X, ChevronLeft } from 'lucide-react';
 import type { FavoriteItem } from '../types';
 import { toPersianDigits } from '../utils/format';
 
@@ -48,7 +48,7 @@ export const FavoritesBar: React.FC<FavoritesBarProps> = ({
           >
             {toPersianDigits(favorites.length)}
           </span>
-          <ChevronDown
+          <ChevronLeft
             className={`w-3.5 h-3.5 transition-transform duration-200 ${
               isExpanded ? 'rotate-180' : ''
             }`}

@@ -1,9 +1,10 @@
-import React from 'react';
-import { Star, Calendar, Maximize2, Radio } from 'lucide-react';
+import React, { useState } from 'react';
+import { Star, Calendar, Maximize2, Radio, Share2, Check } from 'lucide-react';
 import type { RouteData, BusStopETARoute } from '../types';
 import { toPersianDigits, formatETA } from '../utils/format';
 
 interface BusCardProps {
+  stationCode: number;
   route: RouteData;
   isActive: boolean;
   isFavorite: boolean;
@@ -16,6 +17,7 @@ interface BusCardProps {
 }
 
 export const BusCard: React.FC<BusCardProps> = ({
+  stationCode,
   route,
   isActive,
   isFavorite,
@@ -26,7 +28,32 @@ export const BusCard: React.FC<BusCardProps> = ({
   onOpenTimetable,
   onFitRoute,
 }) => {
+  const [copied, setCopied] = useState(false);
   const details = etaData?.Details || [];
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('stop', String(stationCode));
+    url.searchParams.set('route', String(route.code));
+
+    const shareUrl = url.toString();
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = shareUrl;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div
@@ -39,9 +66,9 @@ export const BusCard: React.FC<BusCardProps> = ({
     >
       {/* Top Row: Line Number Badge & Actions */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           <div
-            className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs sm:text-sm font-black transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs sm:text-sm font-black transition-colors shrink-0 ${
               isActive ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-800'
             }`}
           >
@@ -49,32 +76,53 @@ export const BusCard: React.FC<BusCardProps> = ({
             <span>{toPersianDigits(route.code)}</span>
           </div>
           {isActive && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
               مسیر انتخابی
             </span>
           )}
         </div>
 
-        {/* Favorite Star Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
-          title={isFavorite ? 'حذف از نشان‌شده‌ها' : 'نشان کردن خط'}
-          className={`p-1.5 rounded-lg transition-all ${
-            isFavorite
-              ? 'bg-amber-50 text-amber-500 hover:bg-amber-100'
-              : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'
-          }`}
-        >
-          <Star
-            className={`w-3.5 h-3.5 ${
-              isFavorite ? 'fill-amber-400 text-amber-500' : ''
+        {/* Action Buttons: Share & Favorite */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={handleShare}
+            title="کپی لینک مستقیم این خط و ایستگاه"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-emerald-600 hover:bg-slate-100 transition-all active:scale-95 relative cursor-pointer"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5" />
+            )}
+            {copied && (
+              <span className="absolute -top-7 right-1/2 translate-x-1/2 bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-md whitespace-nowrap shadow-md z-20">
+                کپی شد!
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? 'حذف از نشان‌شده‌ها' : 'نشان کردن خط'}
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              isFavorite
+                ? 'bg-amber-50 text-amber-500 hover:bg-amber-100'
+                : 'text-slate-300 hover:text-amber-500 hover:bg-slate-100'
             }`}
-          />
-        </button>
+          >
+            <Star
+              className={`w-3.5 h-3.5 ${
+                isFavorite ? 'fill-amber-400 text-amber-500' : ''
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Destination & Origin */}
