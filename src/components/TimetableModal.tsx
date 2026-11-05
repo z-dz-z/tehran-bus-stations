@@ -222,19 +222,18 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
 
           {!loading && !error && currentSlots.length > 0 && (
             <div>
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1 gap-2">
-                <span className="flex items-center gap-1 shrink-0">
+              {isTodayEnded && (
+                <div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center gap-2 text-xs text-amber-800 font-medium">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>حرکت‌های امروز پایان یافته است</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1">
+                <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   زمان‌های حرکت از ایستگاه
                 </span>
-                <div className="flex items-center gap-2 min-w-0">
-                  {isTodayEnded && (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full font-medium truncate">
-                      حرکت‌های امروز پایان یافته است
-                    </span>
-                  )}
-                  <span className="shrink-0">تعداد: {toPersianDigits(currentSlots.length)} نوبت</span>
-                </div>
+                <span>تعداد: {toPersianDigits(currentSlots.length)} نوبت</span>
               </div>
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                 {currentSlots.map((slot, idx) => {
