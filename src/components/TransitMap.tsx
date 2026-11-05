@@ -1,4 +1,4 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import maplibregl, { type Map, type GeoJSONSource } from 'maplibre-gl';
 import type { RouteData } from '../types';
 
@@ -35,13 +35,19 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
     const mapRef = useRef<Map | null>(null);
     const userMarkerRef = useRef<maplibregl.Marker | null>(null);
     const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
+    const [mapLoaded, setMapLoaded] = useState(false);
+
+    // Keep reference to latest callback to avoid stale closures in event listeners
+    const onSelectStationRef = useRef(onSelectStation);
+    useEffect(() => {
+      onSelectStationRef.current = onSelectStation;
+    }, [onSelectStation]);
 
     // Initialize RTL plugin if not already done
     useEffect(() => {
       try {
         const status = maplibregl.getRTLTextPluginStatus();
         if (status === 'unavailable') {
-          // Use local offline bundle with fallback
           const localPluginUrl = new URL('./mapbox-gl-rtl-text.js', window.location.href).href;
           maplibregl.setRTLTextPlugin(localPluginUrl, true);
         }
@@ -64,7 +70,6 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       flyToUserLocation: (lon: number, lat: number) => {
         if (!mapRef.current) return;
 
-        // Create or move user marker
         if (!userMarkerRef.current) {
           const el = document.createElement('div');
           el.className = 'relative flex items-center justify-center';
@@ -123,7 +128,6 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         attributionControl: false,
       });
 
-      // Custom compact attribution in bottom-left
       map.addControl(
         new maplibregl.AttributionControl({
           compact: true,
@@ -142,7 +146,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       });
 
       map.on('load', () => {
-        // 1. Add active route source (empty initially)
+        // 1. Add active route source
         map.addSource('active-route-source', {
           type: 'geojson',
           data: {
@@ -151,7 +155,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           },
         });
 
-        // 2. Add stations source (empty initially, updated below)
+        // 2. Add stations source
         map.addSource('stations-source', {
           type: 'geojson',
           data: stationsGeoJson || {
@@ -224,8 +228,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           const feat = e.features[0];
           const code = feat.properties?.code;
           if (typeof code === 'number') {
-            onSelectStation(code);
-            // Smoothly center station if user is zoomed out
+            onSelectStationRef.current(code);
             const geom = feat.geometry as GeoJSON.Point;
             if (map.getZoom() < 14 && geom?.coordinates) {
               map.easeTo({
@@ -261,6 +264,8 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           map.getCanvas().style.cursor = '';
           hoverPopupRef.current?.remove();
         });
+
+        setMapLoaded(true);
       });
 
       return () => {
@@ -268,24 +273,27 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         userMarkerRef.current?.remove();
         map.remove();
         mapRef.current = null;
+        setMapLoaded(false);
       };
-    }, [onSelectStation, stationsGeoJson]);
+    }, [stationsGeoJson]);
 
     // Update stations GeoJSON source if it arrived after map load
     useEffect(() => {
+      if (!mapLoaded) return;
       const map = mapRef.current;
-      if (!map || !map.isStyleLoaded() || !stationsGeoJson) return;
+      if (!map || !stationsGeoJson) return;
 
       const source = map.getSource('stations-source') as GeoJSONSource | undefined;
       if (source) {
         source.setData(stationsGeoJson);
       }
-    }, [stationsGeoJson]);
+    }, [mapLoaded, stationsGeoJson]);
 
     // Update active route geometry
     useEffect(() => {
+      if (!mapLoaded) return;
       const map = mapRef.current;
-      if (!map || !map.isStyleLoaded()) return;
+      if (!map) return;
 
       const source = map.getSource('active-route-source') as GeoJSONSource | undefined;
       if (!source) return;
@@ -310,19 +318,21 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
           features: [],
         });
       }
-    }, [activeRoute]);
+    }, [mapLoaded, activeRoute]);
 
     // Update station circle paint properties for selected station and route filtering
     const updateStationStyles = useCallback(() => {
+      if (!mapLoaded) return;
       const map = mapRef.current;
-      if (!map || !map.isStyleLoaded() || !map.getLayer('stations-circle')) return;
+      if (!map || !map.getLayer('stations-circle')) return;
 
       const selected = selectedStationCode ?? -1;
+      const codeExpr = ['coalesce', ['get', 'code'], -1];
 
-      // 1. Circle radius: selected station gets 10px
+      // 1. Circle radius: selected station gets 10.5px
       map.setPaintProperty('stations-circle', 'circle-radius', [
         'case',
-        ['==', ['get', 'code'], selected],
+        ['==', codeExpr, selected],
         10.5,
         [
           'interpolate',
@@ -340,7 +350,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       // 2. Circle color: selected is blue (#2563eb), regular is orange (#f97316)
       map.setPaintProperty('stations-circle', 'circle-color', [
         'case',
-        ['==', ['get', 'code'], selected],
+        ['==', codeExpr, selected],
         '#2563eb',
         '#f97316',
       ]);
@@ -348,7 +358,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       // 3. Circle stroke width: selected gets 3px
       map.setPaintProperty('stations-circle', 'circle-stroke-width', [
         'case',
-        ['==', ['get', 'code'], selected],
+        ['==', codeExpr, selected],
         3,
         1.5,
       ]);
@@ -357,32 +367,32 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       if (activeRouteStationCodes && activeRouteStationCodes.length > 0) {
         const inRouteExpr = [
           'in',
-          ['get', 'code'],
+          codeExpr,
           ['literal', activeRouteStationCodes],
         ];
 
         map.setPaintProperty('stations-circle', 'circle-opacity', [
           'case',
-          ['==', ['get', 'code'], selected],
+          ['==', codeExpr, selected],
           1.0,
           inRouteExpr,
           1.0,
-          0.3,
+          0.35,
         ]);
 
         map.setPaintProperty('stations-circle', 'circle-stroke-opacity', [
           'case',
-          ['==', ['get', 'code'], selected],
+          ['==', codeExpr, selected],
           1.0,
           inRouteExpr,
           1.0,
-          0.3,
+          0.35,
         ]);
       } else {
         map.setPaintProperty('stations-circle', 'circle-opacity', 1.0);
         map.setPaintProperty('stations-circle', 'circle-stroke-opacity', 1.0);
       }
-    }, [selectedStationCode, activeRouteStationCodes]);
+    }, [mapLoaded, selectedStationCode, activeRouteStationCodes]);
 
     useEffect(() => {
       updateStationStyles();

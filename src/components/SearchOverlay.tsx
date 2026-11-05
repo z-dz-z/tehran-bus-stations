@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, MapPin, Bus, ArrowLeft } from 'lucide-react';
 import type { TransitData, RouteData, StationInfo } from '../types';
-import { toPersianDigits, toEnglishDigits } from '../utils/format';
+import { toPersianDigits, normalizePersianText } from '../utils/format';
 
 interface SearchOverlayProps {
   transitData: TransitData | null;
@@ -37,7 +37,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   }, [isOpen]);
 
   const normalizedQuery = useMemo(() => {
-    return toEnglishDigits(query.trim()).toLowerCase();
+    return normalizePersianText(query);
   }, [query]);
 
   // Filter stations and routes
@@ -53,10 +53,12 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     for (const [codeStr, station] of Object.entries(transitData.stations)) {
       const code = Number(codeStr);
       const [name, lon, lat, address] = station;
+      const normName = normalizePersianText(name);
+      const normAddr = normalizePersianText(address || '');
       if (
         codeStr.includes(q) ||
-        name.toLowerCase().includes(q) ||
-        (address && address.toLowerCase().includes(q))
+        normName.includes(q) ||
+        normAddr.includes(q)
       ) {
         stations.push({ code, name, lon, lat, address });
         if (stations.length >= 8) break;
@@ -71,10 +73,13 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
       const key = `${route.code}-${route.dir}`;
       if (seenCodes.has(key)) continue;
 
+      const normOrig = normalizePersianText(route.orig);
+      const normDest = normalizePersianText(route.dest);
+
       if (
         codeStr.includes(q) ||
-        route.orig.toLowerCase().includes(q) ||
-        route.dest.toLowerCase().includes(q)
+        normOrig.includes(q) ||
+        normDest.includes(q)
       ) {
         seenCodes.add(key);
         routes.push(route);

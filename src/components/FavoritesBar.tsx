@@ -58,3 +58,4 @@ export const FavoritesBar: React.FC<FavoritesBarProps> = ({
     </div>
   );
 };
+

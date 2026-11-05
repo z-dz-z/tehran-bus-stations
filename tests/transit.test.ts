@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { toPersianDigits, toEnglishDigits, formatETA } from '../src/utils/format';
+import { toPersianDigits, toEnglishDigits, normalizePersianText, formatETA } from '../src/utils/format';
 import { fetchBusStopETA, fetchStationTimetable } from '../src/api/transitApi';
 
 describe('Format Utilities', () => {
@@ -19,10 +19,20 @@ describe('Format Utilities', () => {
     expect(toEnglishDigits('ایستگاه ۱۰۱')).toBe('ایستگاه 101');
   });
 
+  it('normalizes Persian text variations (Arabic yeh/kaf, half-spaces)', () => {
+    expect(normalizePersianText('پايانه')).toBe('پایانه');
+    expect(normalizePersianText('كوي ياْس')).toBe('کوی یاس');
+    expect(normalizePersianText('ایستگاه\u200cها')).toBe('ایستگاه ها');
+  });
+
   it('formats ETA values accurately', () => {
+    const atStop = formatETA(0);
+    expect(atStop.status).toBe('arriving');
+    expect(atStop.displayText).toBe('در ایستگاه');
+
     const arriving = formatETA(1);
     expect(arriving.status).toBe('arriving');
-    expect(arriving.displayText).toBe('در حال ورود به ایستگاه');
+    expect(arriving.displayText).toBe('کمتر از ۱ دقیقه');
 
     const approaching = formatETA(4);
     expect(approaching.status).toBe('approaching');
@@ -39,6 +49,9 @@ describe('Format Utilities', () => {
     const none = formatETA(null);
     expect(none.status).toBe('none');
     expect(none.displayText).toBe('اطلاعات در دسترس نیست');
+
+    const negative = formatETA(-1);
+    expect(negative.status).toBe('none');
   });
 });
 
@@ -102,3 +115,4 @@ describe('Live Transit API Integration', () => {
     }
   });
 });
+

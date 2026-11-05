@@ -159,6 +159,9 @@ export const App: React.FC = () => {
       let targetRoute: RouteData | null = null;
       if (targetRouteCode) {
         targetRoute = routes.find((r) => r.code === targetRouteCode) || null;
+        if (!targetRoute) {
+          targetRoute = Object.values(transitData.routes).find((r) => r.code === targetRouteCode) || null;
+        }
       }
       if (!targetRoute && routes.length > 0) {
         targetRoute = routes[0];
@@ -166,9 +169,6 @@ export const App: React.FC = () => {
 
       setActiveRoute(targetRoute);
       syncUrlParams(stationCode, targetRoute?.code);
-
-      // Trigger ETA fetch
-      fetchETA(stationCode);
     },
     [transitData, syncUrlParams, fetchETA]
   );

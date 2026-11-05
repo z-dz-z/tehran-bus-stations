@@ -68,7 +68,7 @@ export const StationSheet: React.FC<StationSheetProps> = ({
   }, [activeRoute]);
 
   return (
-    <div className="w-full bg-white/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-slate-200/80 overflow-hidden pb-4 pt-3 flex flex-col pointer-events-auto transition-all animate-in slide-in-from-bottom-8 duration-200 max-h-[50vh] sm:max-h-[45vh]">
+    <div className="w-full bg-white/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-slate-200/80 overflow-hidden pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 flex flex-col pointer-events-auto transition-all animate-in slide-in-from-bottom-8 duration-200 max-h-[50vh] sm:max-h-[45vh]">
       {/* Top Drag Handle Bar */}
       <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2 shrink-0"></div>
 
@@ -173,3 +173,4 @@ export const StationSheet: React.FC<StationSheetProps> = ({
     </div>
   );
 };
+

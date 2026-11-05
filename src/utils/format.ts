@@ -15,14 +15,31 @@ export function toEnglishDigits(str: string): string {
 }
 
 /**
+ * Comprehensive Persian text normalizer:
+ * Handles Arabic yeh/kaf, half-spaces (ZWNJ), extra spaces, and digit conversion
+ */
+export function normalizePersianText(str: string): string {
+  if (!str) return '';
+  return toEnglishDigits(str)
+    .replace(/[\u064B-\u065F\u0670]/g, '') // remove Arabic diacritics / tashkeel
+    .replace(/[ي]/g, 'ی')
+    .replace(/[ك]/g, 'ک')
+    .replace(/[ۀة]/g, 'ه')
+    .replace(/[\u200c\u200b\u200e\u200f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
  * Formats ETA string or ETAValue into user friendly Persian description
  */
-export function formatETA(etaValue: number | null, etaText?: string): {
+export function formatETA(etaValue: number | null | undefined, etaText?: string): {
   displayText: string;
   badgeClass: string;
   status: 'arriving' | 'approaching' | 'far' | 'none';
 } {
-  if (etaValue === null || etaValue === undefined) {
+  if (etaValue === null || etaValue === undefined || etaValue < 0) {
     if (etaText && etaText.trim()) {
       return {
         displayText: toPersianDigits(etaText.trim()),
@@ -37,10 +54,18 @@ export function formatETA(etaValue: number | null, etaText?: string): {
     };
   }
 
-  if (etaValue <= 1) {
+  if (etaValue === 0) {
     return {
-      displayText: 'در حال ورود به ایستگاه',
-      badgeClass: 'bg-rose-500 text-white animate-pulse font-bold',
+      displayText: 'در ایستگاه',
+      badgeClass: 'bg-rose-600 text-white animate-pulse font-bold',
+      status: 'arriving'
+    };
+  }
+
+  if (etaValue === 1) {
+    return {
+      displayText: 'کمتر از ۱ دقیقه',
+      badgeClass: 'bg-rose-500 text-white font-bold',
       status: 'arriving'
     };
   }

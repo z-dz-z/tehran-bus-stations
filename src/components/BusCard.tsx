@@ -153,3 +153,4 @@ export const BusCard: React.FC<BusCardProps> = ({
     </div>
   );
 };
+
