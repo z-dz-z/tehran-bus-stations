@@ -195,3 +195,29 @@ describe('Map Attribution Control & Placement', () => {
   });
 });
 
+describe('StationSheet Header & Minimize Controls', () => {
+  it('removes cosmetic gray drag bar and includes dedicated Chevron toggle and Close buttons', () => {
+    const stationSheetSrc = fs.readFileSync(
+      path.resolve(__dirname, '../src/components/StationSheet.tsx'),
+      'utf-8'
+    );
+
+    // Gray drag handle bar should not exist
+    expect(stationSheetSrc).not.toContain('Top Drag Handle Bar');
+    expect(stationSheetSrc).not.toContain('w-10 h-1.5 bg-slate-300');
+
+    // Both ChevronDown and ChevronUp must be imported from lucide-react
+    expect(stationSheetSrc).toContain('ChevronDown');
+    expect(stationSheetSrc).toContain('ChevronUp');
+
+    // Minimize toggle button must render ChevronUp when minimized and ChevronDown when expanded
+    expect(stationSheetSrc).toContain('isMinimized ? <ChevronUp');
+    expect(stationSheetSrc).toContain(': <ChevronDown');
+
+    // Both Minimize and Close buttons must have comfortable gap spacing and distinct hit targets
+    expect(stationSheetSrc).toContain('gap-2 sm:gap-2.5');
+    expect(stationSheetSrc).toContain('title={isMinimized ? \'بزرگ‌کردن\' : \'کوچک‌کردن\'}');
+    expect(stationSheetSrc).toContain('title="بستن"');
+  });
+});
+
