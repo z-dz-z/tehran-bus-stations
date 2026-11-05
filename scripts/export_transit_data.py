@@ -17,8 +17,8 @@ def export_transit_data(sqlite_path: str, output_path: str):
     for row in cursor.fetchall():
         code_str = str(row["StationCode"])
         name = (row["StationName"] or "").strip()
-        lon = round(float(row["Longitude"]), 5)
-        lat = round(float(row["Latitude"]), 5)
+        lon = float(row["Longitude"])
+        lat = float(row["Latitude"])
         addr = (row["Address"] or "").strip()
         # [name, lon, lat, address]
         stations[code_str] = [name, lon, lat, addr]
@@ -53,8 +53,8 @@ def export_transit_data(sqlite_path: str, output_path: str):
                 parts = pair.split(",")
                 if len(parts) >= 2:
                     try:
-                        v_lon = round(float(parts[0]), 5)
-                        v_lat = round(float(parts[1]), 5)
+                        v_lon = float(parts[0])
+                        v_lat = float(parts[1])
                         path.append([v_lon, v_lat])
                     except ValueError:
                         continue

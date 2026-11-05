@@ -27,6 +27,7 @@ export const App: React.FC = () => {
   // Live ETA State
   const [etaDataMap, setEtaDataMap] = useState<Record<string, any>>({});
   const [isLoadingETA, setIsLoadingETA] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Modals
   const [timetableRoute, setTimetableRoute] = useState<RouteData | null>(null);
@@ -127,6 +128,7 @@ export const App: React.FC = () => {
           map[String(r.RouteCode)] = r;
         }
         setEtaDataMap(map);
+        setLastUpdated(new Date());
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           console.error('ETA fetch error:', err);
@@ -173,20 +175,31 @@ export const App: React.FC = () => {
     [transitData, syncUrlParams, fetchETA]
   );
 
-  // Auto-refresh ETA every 30 seconds while station is selected
+  // Auto-refresh ETA every 30 seconds while station is selected, plus on tab focus/visibility
   useEffect(() => {
     if (selectedStationCode === null) return;
 
-    const controller = new AbortController();
+    let controller = new AbortController();
     fetchETA(selectedStationCode, controller.signal);
 
     const interval = setInterval(() => {
-      fetchETA(selectedStationCode);
+      if (!document.hidden) {
+        fetchETA(selectedStationCode);
+      }
     }, 30000);
+
+    const handleVisibility = () => {
+      if (!document.hidden && selectedStationCode !== null) {
+        fetchETA(selectedStationCode);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       controller.abort();
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [selectedStationCode, fetchETA]);
 
@@ -234,6 +247,7 @@ export const App: React.FC = () => {
     setSelectedStationCode(null);
     setActiveRoute(null);
     setEtaDataMap({});
+    setLastUpdated(null);
     syncUrlParams(null);
   }, [syncUrlParams]);
 
@@ -366,6 +380,7 @@ export const App: React.FC = () => {
             onToggleFavorite={handleToggleFavorite}
             onOpenTimetable={(rt) => setTimetableRoute(rt)}
             onFitRoute={(rt) => mapRef.current?.fitRouteBounds(rt.path)}
+            lastUpdated={lastUpdated}
           />
         </div>
       )}

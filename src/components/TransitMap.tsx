@@ -91,16 +91,32 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         });
       },
       fitRouteBounds: (coordinates: [number, number][]) => {
-        if (!mapRef.current || coordinates.length === 0) return;
+        if (!mapRef.current || !coordinates || coordinates.length === 0) return;
         const bounds = new maplibregl.LngLatBounds(coordinates[0], coordinates[0]);
         for (const coord of coordinates) {
           bounds.extend(coord);
         }
-        mapRef.current.fitBounds(bounds, {
-          padding: { top: 90, bottom: 290, left: 40, right: 40 },
-          maxZoom: 16,
-          duration: 1100,
-        });
+
+        const container = mapRef.current.getContainer();
+        const clientWidth = container?.clientWidth || window.innerWidth;
+        const isMobile = clientWidth < 640;
+
+        // Try responsive padding first; fallback to compact padding if the route spans across all Tehran
+        const primaryPadding = isMobile
+          ? { top: 30, bottom: 95, left: 16, right: 16 }
+          : { top: 60, bottom: 200, left: 32, right: 32 };
+
+        let camera = mapRef.current.cameraForBounds(bounds, { padding: primaryPadding, maxZoom: 16 });
+        if (!camera) {
+          camera = mapRef.current.cameraForBounds(bounds, { padding: 16, maxZoom: 16 });
+        }
+
+        if (camera) {
+          mapRef.current.easeTo({
+            ...camera,
+            duration: 1000,
+          });
+        }
       },
       zoomIn: () => {
         mapRef.current?.zoomIn({ duration: 300 });
@@ -123,7 +139,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         style: 'https://tiles.openfreemap.org/styles/liberty',
         center: [51.389, 35.6892],
         zoom: 13.5,
-        minZoom: 10,
+        minZoom: 8,
         maxZoom: 19,
         attributionControl: false,
       });
@@ -137,6 +153,9 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       );
 
       mapRef.current = map;
+      if (typeof window !== 'undefined') {
+        (window as any).__map = map;
+      }
 
       hoverPopupRef.current = new maplibregl.Popup({
         closeButton: false,
@@ -329,22 +348,17 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       const selected = selectedStationCode ?? -1;
       const codeExpr = ['coalesce', ['get', 'code'], -1];
 
-      // 1. Circle radius: selected station gets 10.5px
+      // 1. Circle radius: top-level must be interpolate because zoom expressions cannot be nested
       map.setPaintProperty('stations-circle', 'circle-radius', [
-        'case',
-        ['==', codeExpr, selected],
-        10.5,
-        [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11.5,
-          2.5,
-          13,
-          5,
-          15,
-          7.5,
-        ],
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        11.5,
+        ['case', ['==', codeExpr, selected], 7, 2.5],
+        13,
+        ['case', ['==', codeExpr, selected], 9, 5],
+        15,
+        ['case', ['==', codeExpr, selected], 11, 7.5],
       ]);
 
       // 2. Circle color: selected is blue (#2563eb), regular is orange (#f97316)

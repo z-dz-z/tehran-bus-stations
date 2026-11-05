@@ -19,6 +19,7 @@ interface StationSheetProps {
   onToggleFavorite: (stationCode: number, routeCode: number, destName: string) => void;
   onOpenTimetable: (route: RouteData) => void;
   onFitRoute: (route: RouteData) => void;
+  lastUpdated?: Date | null;
 }
 
 export const StationSheet: React.FC<StationSheetProps> = ({
@@ -36,6 +37,7 @@ export const StationSheet: React.FC<StationSheetProps> = ({
   onToggleFavorite,
   onOpenTimetable,
   onFitRoute,
+  lastUpdated,
 }) => {
   const [copied, setCopied] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -68,36 +70,43 @@ export const StationSheet: React.FC<StationSheetProps> = ({
   }, [activeRoute]);
 
   return (
-    <div className="w-full bg-white/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-slate-200/80 overflow-hidden pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 flex flex-col pointer-events-auto transition-all animate-in slide-in-from-bottom-8 duration-200 max-h-[50vh] sm:max-h-[45vh]">
+    <div className="w-full bg-white/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-slate-200/80 overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:pt-3 flex flex-col pointer-events-auto transition-all animate-in slide-in-from-bottom-8 duration-200 max-h-[55vh] sm:max-h-[45vh]">
       {/* Top Drag Handle Bar */}
-      <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2 shrink-0"></div>
+      <div className="w-8 h-1 bg-slate-300 rounded-full mx-auto mb-1.5 shrink-0"></div>
 
       {/* Station Header Bar */}
-      <div className="px-4 sm:px-6 flex items-center justify-between gap-3 border-b border-slate-100 pb-3 shrink-0">
-        <div className="min-w-0 pr-1">
-          <div className="flex items-center gap-2">
+      <div className="px-3.5 sm:px-6 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 shrink-0">
+        <div className="min-w-0 pr-0.5">
+          <div className="flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-            <h1 className="text-base sm:text-lg font-black text-slate-800 truncate">
+            <h1 className="text-sm sm:text-base font-black text-slate-800 truncate">
               {stationName}
             </h1>
-            <span className="text-xs font-mono font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded-lg shrink-0">
+            <span className="text-[11px] font-mono font-bold bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-md shrink-0">
               کد {toPersianDigits(stationCode)}
+            </span>
+            <span
+              title="به‌روزرسانی زنده خودکار هر ۳۰ ثانیه"
+              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-1.5 py-0.5 rounded-md flex items-center gap-1 shrink-0"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              زنده
             </span>
           </div>
           {stationAddress && (
-            <p className="text-xs text-slate-500 truncate mt-0.5 pr-6">
+            <p className="text-[11px] text-slate-500 truncate mt-0.5 pr-5">
               {stationAddress}
             </p>
           )}
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Share Button */}
           <button
             onClick={handleShare}
             title="کپی لینک اشتراک‌گذاری این ایستگاه"
-            className="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all relative"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all relative"
           >
             {copied ? (
               <Check className="w-4 h-4 text-emerald-600" />
@@ -115,8 +124,8 @@ export const StationSheet: React.FC<StationSheetProps> = ({
           <button
             onClick={onRefreshETA}
             disabled={isLoadingETA}
-            title="به‌روزرسانی زمان ورود اتوبوس‌ها"
-            className="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all"
+            title={`به‌روزرسانی زمان ورود (خودکار هر ۳۰ ثانیه)${lastUpdated ? `\nآخرین به‌روزرسانی: ${lastUpdated.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 active:scale-95 transition-all"
           >
             <RefreshCw
               className={`w-4 h-4 ${isLoadingETA ? 'animate-spin text-emerald-600' : ''}`}
@@ -127,9 +136,9 @@ export const StationSheet: React.FC<StationSheetProps> = ({
           <button
             onClick={onClose}
             title="بستن"
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>
@@ -137,7 +146,7 @@ export const StationSheet: React.FC<StationSheetProps> = ({
       {/* Routes Horizontal Snap List */}
       <div
         ref={scrollContainerRef}
-        className="overflow-x-auto no-scrollbar snap-x snap-mandatory px-4 sm:px-6 pt-3 flex gap-3 items-stretch"
+        className="overflow-x-auto no-scrollbar snap-x snap-mandatory px-3.5 sm:px-6 pt-2 pb-1 flex gap-2.5 items-stretch"
       >
         {routes.length === 0 ? (
           <div className="w-full py-8 text-center text-slate-400 text-sm flex flex-col items-center justify-center gap-2">
