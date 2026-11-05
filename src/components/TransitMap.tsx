@@ -158,13 +158,23 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         attributionControl: false,
       });
 
-      map.addControl(
-        new maplibregl.AttributionControl({
-          compact: true,
-          customAttribution: '© OpenFreeMap / OpenStreetMap / NEDA BusETA',
-        }),
-        'bottom-left'
-      );
+      const attributionControl = new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution: 'NEDA BusETA',
+      });
+
+      // Ensure compact attribution starts collapsed (closed) by default
+      const origUpdateCompact = (attributionControl as any)._updateCompact;
+      let hasInitialized = false;
+      (attributionControl as any)._updateCompact = () => {
+        origUpdateCompact.call(attributionControl);
+        if (!hasInitialized) {
+          (attributionControl as any)._container?.classList.remove('maplibregl-compact-show');
+          hasInitialized = true;
+        }
+      };
+
+      map.addControl(attributionControl, 'bottom-right');
 
       mapRef.current = map;
       if (typeof window !== 'undefined') {

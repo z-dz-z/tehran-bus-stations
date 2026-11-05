@@ -175,3 +175,23 @@ describe('Color System & Map Marker Integrity', () => {
   });
 });
 
+describe('Map Attribution Control & Placement', () => {
+  it('configures AttributionControl at bottom-right with NEDA BusETA custom attribution', () => {
+    const transitMapSrc = fs.readFileSync(
+      path.resolve(__dirname, '../src/components/TransitMap.tsx'),
+      'utf-8'
+    );
+
+    // Must be placed in bottom-right (not bottom-left under +/- zoom buttons)
+    expect(transitMapSrc).toContain("map.addControl(attributionControl, 'bottom-right');");
+    expect(transitMapSrc).not.toContain("map.addControl(attributionControl, 'bottom-left');");
+
+    // Cleaned up attribution string
+    expect(transitMapSrc).toContain("customAttribution: 'NEDA BusETA'");
+    expect(transitMapSrc).not.toContain("customAttribution: '© OpenFreeMap / OpenStreetMap / NEDA BusETA'");
+
+    // Hooked to remain closed by default on initial setup
+    expect(transitMapSrc).toContain("classList.remove('maplibregl-compact-show')");
+  });
+});
+
