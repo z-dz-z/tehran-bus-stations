@@ -179,6 +179,15 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       });
 
       map.on('load', () => {
+        // Hide road shield numbers (municipal street codes) that clutter Tehran OSM tiles
+        ['highway-shield-non-us', 'highway-shield-us-interstate', 'road_shield_us'].forEach(
+          (layerId) => {
+            if (map.getLayer(layerId)) {
+              map.setLayoutProperty(layerId, 'visibility', 'none');
+            }
+          }
+        );
+
         // 1. Add active route source
         map.addSource('active-route-source', {
           type: 'geojson',
