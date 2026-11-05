@@ -23,6 +23,7 @@ export const App: React.FC = () => {
   // Selection State
   const [selectedStationCode, setSelectedStationCode] = useState<number | null>(null);
   const [activeRoute, setActiveRoute] = useState<RouteData | null>(null);
+  const [isSheetMinimized, setIsSheetMinimized] = useState(false);
 
   // Live ETA State
   const [etaDataMap, setEtaDataMap] = useState<Record<string, any>>({});
@@ -144,6 +145,7 @@ export const App: React.FC = () => {
   const handleSelectStation = useCallback(
     (stationCode: number, targetRouteCode?: number) => {
       setSelectedStationCode(stationCode);
+      setIsSheetMinimized(false);
 
       if (!transitData) return;
 
@@ -246,6 +248,7 @@ export const App: React.FC = () => {
   const handleCloseStation = useCallback(() => {
     setSelectedStationCode(null);
     setActiveRoute(null);
+    setIsSheetMinimized(false);
     setEtaDataMap({});
     setLastUpdated(null);
     syncUrlParams(null);
@@ -340,6 +343,11 @@ export const App: React.FC = () => {
             transitData={transitData}
             onSelectStation={(code) => handleSelectStation(code)}
             onSelectRoute={(rt) => handleSelectRoute(rt)}
+            onOpenChange={(open) => {
+              if (open && selectedStationCode !== null) {
+                setIsSheetMinimized(true);
+              }
+            }}
           />
         </div>
 
@@ -352,8 +360,16 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Map Controls (Right Side) */}
-      <div className="absolute left-3 sm:left-4 bottom-24 sm:bottom-28 z-20 pointer-events-none">
+      {/* Floating Map Controls (Right Side / Left Side) */}
+      <div
+        className={`absolute left-3 sm:left-4 z-20 pointer-events-none transition-all duration-300 ${
+          selectedStationInfo
+            ? isSheetMinimized
+              ? 'bottom-20 sm:bottom-24'
+              : 'bottom-[calc(55vh+1rem)] sm:bottom-[calc(45vh+1rem)]'
+            : 'bottom-6 sm:bottom-8'
+        }`}
+      >
         <MapControls
           onLocateUser={(lon, lat) => mapRef.current?.flyToUserLocation(lon, lat)}
           onZoomIn={() => mapRef.current?.zoomIn()}
@@ -381,6 +397,8 @@ export const App: React.FC = () => {
             onOpenTimetable={(rt) => setTimetableRoute(rt)}
             onFitRoute={(rt) => mapRef.current?.fitRouteBounds(rt.path)}
             lastUpdated={lastUpdated}
+            isMinimized={isSheetMinimized}
+            onToggleMinimize={setIsSheetMinimized}
           />
         </div>
       )}

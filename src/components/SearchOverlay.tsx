@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, MapPin, Bus, ArrowLeft } from 'lucide-react';
 import type { TransitData, RouteData, StationInfo } from '../types';
 import { toPersianDigits, normalizePersianText } from '../utils/format';
@@ -7,16 +8,29 @@ interface SearchOverlayProps {
   transitData: TransitData | null;
   onSelectStation: (stationCode: number) => void;
   onSelectRoute: (route: RouteData) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   transitData,
   onSelectStation,
   onSelectRoute,
+  onOpenChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpen = () => {
+    setIsOpen(true);
+    onOpenChange?.(true);
+  };
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setQuery('');
+    onOpenChange?.(false);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -28,8 +42,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        setIsOpen(false);
-        setQuery('');
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -92,14 +105,12 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   const handleStationClick = (code: number) => {
     onSelectStation(code);
-    setIsOpen(false);
-    setQuery('');
+    handleClose();
   };
 
   const handleRouteClick = (route: RouteData) => {
     onSelectRoute(route);
-    setIsOpen(false);
-    setQuery('');
+    handleClose();
   };
 
   return (
@@ -107,148 +118,149 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
       {/* Top Search Trigger Bar */}
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-3 w-full bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-lg border border-slate-200/80 cursor-pointer transition-all hover:bg-white active:scale-[0.99] text-right"
+        onClick={handleOpen}
+        className="flex items-center gap-2.5 sm:gap-3 w-full bg-white/95 backdrop-blur-md px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-lg border border-slate-200/80 cursor-pointer transition-all hover:bg-white active:scale-[0.99] text-right"
       >
-        <Search className="w-5 h-5 text-emerald-600 shrink-0" />
-        <span className="text-sm text-slate-500 font-medium select-none truncate">
-          جستجوی ایستگاه (نام یا کد) یا خط اتوبوس...
+        <Search className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 shrink-0" />
+        <span className="text-xs sm:text-sm text-slate-500 font-medium select-none truncate">
+          جستجوی ایستگاه یا شماره خط...
         </span>
       </button>
 
-      {/* Full Modal Search Dialog */}
-      {isOpen && (
-        <div
-          onClick={() => {
-            setIsOpen(false);
-            setQuery('');
-          }}
-          className="fixed inset-0 z-50 flex flex-col bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150 pointer-events-auto"
-        >
+      {/* Full Modal Search Dialog - Portaled to document.body to break free of parent stacking context */}
+      {isOpen &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-xl mx-auto rounded-b-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border-b border-slate-200"
+            onClick={handleClose}
+            className="fixed inset-0 z-50 flex flex-col bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150 pointer-events-auto"
           >
-            {/* Input Bar */}
-            <div className="p-3.5 border-b border-slate-100 flex items-center gap-2">
-              <Search className="w-5 h-5 text-emerald-600 shrink-0 mr-1" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="نام ایستگاه، کد ایستگاه (مثلاً ۱۰۰۱) یا شماره خط..."
-                className="w-full text-base font-medium text-slate-800 placeholder-slate-400 bg-transparent outline-none pr-1"
-                dir="rtl"
-              />
-              {query && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-xl mx-auto rounded-b-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border-b border-slate-200"
+            >
+              {/* Input Bar */}
+              <div className="p-3 sm:p-3.5 border-b border-slate-100 flex items-center gap-2">
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 shrink-0 mr-0.5 sm:mr-1" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="نام، کد ایستگاه یا شماره خط..."
+                  className="w-full text-sm sm:text-base font-medium text-slate-800 placeholder-slate-400 bg-transparent outline-none pr-1"
+                  dir="rtl"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    title="پاک کردن متن"
+                    className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
                 <button
-                  onClick={() => setQuery('')}
-                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                  type="button"
+                  onClick={handleClose}
+                  className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0 cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  بستن
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  setQuery('');
-                }}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
-              >
-                بستن
-              </button>
-            </div>
+              </div>
 
-            {/* Results Area */}
-            <div className="overflow-y-auto p-3 space-y-4 max-h-[70vh]">
-              {normalizedQuery.length < 2 && (
-                <div className="py-12 text-center text-slate-400 text-sm">
-                  حداقل ۲ حرف یا عدد وارد کنید تا نتایج نمایش داده شوند.
-                </div>
-              )}
-
-              {normalizedQuery.length >= 2 &&
-                filteredStations.length === 0 &&
-                filteredRoutes.length === 0 && (
+              {/* Results Area */}
+              <div className="overflow-y-auto p-3 space-y-4 max-h-[70vh]">
+                {normalizedQuery.length < 2 && (
                   <div className="py-12 text-center text-slate-400 text-sm">
-                    موردی یافت نشد.
+                    حداقل ۲ حرف یا عدد وارد کنید تا نتایج نمایش داده شوند.
                   </div>
                 )}
 
-              {/* Station Results */}
-              {filteredStations.length > 0 && (
-                <div>
-                  <div className="text-xs font-bold text-slate-400 px-2 mb-2 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                    <span>ایستگاه‌ها ({toPersianDigits(filteredStations.length)})</span>
-                  </div>
-                  <div className="space-y-1">
-                    {filteredStations.map((st) => (
-                      <button
-                        key={st.code}
-                        onClick={() => handleStationClick(st.code)}
-                        className="w-full text-right p-2.5 rounded-xl hover:bg-orange-50 transition-colors flex items-center justify-between group border border-transparent hover:border-orange-100"
-                      >
-                        <div className="min-w-0 pr-1">
-                          <div className="font-semibold text-sm text-slate-800 group-hover:text-orange-900 truncate">
-                            {st.name}
-                          </div>
-                          {st.address && (
-                            <div className="text-xs text-slate-500 truncate mt-0.5">
-                              {st.address}
-                            </div>
-                          )}
-                        </div>
-                        <div className="shrink-0 flex items-center gap-2">
-                          <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 group-hover:bg-orange-100 group-hover:text-orange-800">
-                            کد {toPersianDigits(st.code)}
-                          </span>
-                          <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:text-orange-500 transition-transform group-hover:-translate-x-0.5" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                {normalizedQuery.length >= 2 &&
+                  filteredStations.length === 0 &&
+                  filteredRoutes.length === 0 && (
+                    <div className="py-12 text-center text-slate-400 text-sm">
+                      موردی یافت نشد.
+                    </div>
+                  )}
 
-              {/* Route Results */}
-              {filteredRoutes.length > 0 && (
-                <div>
-                  <div className="text-xs font-bold text-slate-400 px-2 mb-2 flex items-center gap-1.5">
-                    <Bus className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>خطوط اتوبوس ({toPersianDigits(filteredRoutes.length)})</span>
-                  </div>
-                  <div className="space-y-1">
-                    {filteredRoutes.map((rt) => (
-                      <button
-                        key={rt.id}
-                        onClick={() => handleRouteClick(rt)}
-                        className="w-full text-right p-2.5 rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-between group border border-transparent hover:border-emerald-100"
-                      >
-                        <div className="min-w-0 pr-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white shrink-0">
-                              خط {toPersianDigits(rt.code)}
-                            </span>
-                            <span className="text-xs font-semibold text-slate-800 truncate">
-                              به سمت {rt.dest}
-                            </span>
+                {/* Station Results */}
+                {filteredStations.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 px-2 mb-2 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                      <span>ایستگاه‌ها ({toPersianDigits(filteredStations.length)})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {filteredStations.map((st) => (
+                        <button
+                          type="button"
+                          key={st.code}
+                          onClick={() => handleStationClick(st.code)}
+                          className="w-full text-right p-2.5 rounded-xl hover:bg-orange-50 transition-colors flex items-center justify-between group border border-transparent hover:border-orange-100 cursor-pointer"
+                        >
+                          <div className="min-w-0 pr-1">
+                            <div className="font-semibold text-sm text-slate-800 group-hover:text-orange-900 truncate">
+                              {st.name}
+                            </div>
+                            {st.address && (
+                              <div className="text-xs text-slate-500 truncate mt-0.5">
+                                {st.address}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[11px] text-slate-500 truncate mt-1">
-                            مبدأ: {rt.orig}
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 group-hover:bg-orange-100 group-hover:text-orange-800">
+                              کد {toPersianDigits(st.code)}
+                            </span>
+                            <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:text-orange-500 transition-transform group-hover:-translate-x-0.5" />
                           </div>
-                        </div>
-                        <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 shrink-0 transition-transform group-hover:-translate-x-0.5" />
-                      </button>
-                    ))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Route Results */}
+                {filteredRoutes.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-400 px-2 mb-2 flex items-center gap-1.5">
+                      <Bus className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>خطوط اتوبوس ({toPersianDigits(filteredRoutes.length)})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {filteredRoutes.map((rt) => (
+                        <button
+                          type="button"
+                          key={rt.id}
+                          onClick={() => handleRouteClick(rt)}
+                          className="w-full text-right p-2.5 rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-between group border border-transparent hover:border-emerald-100 cursor-pointer"
+                        >
+                          <div className="min-w-0 pr-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white shrink-0">
+                                خط {toPersianDigits(rt.code)}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-800 truncate">
+                                به سمت {rt.dest}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate mt-1">
+                              مبدأ: {rt.orig}
+                            </div>
+                          </div>
+                          <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 shrink-0 transition-transform group-hover:-translate-x-0.5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

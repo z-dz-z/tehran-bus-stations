@@ -126,25 +126,29 @@ export const BusCard: React.FC<BusCardProps> = ({
       {/* Action Buttons Row */}
       <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onOpenTimetable();
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100/80 hover:bg-emerald-50 transition-colors"
+          title="مشاهده برنامه حرکت خط"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100/80 hover:bg-emerald-50 transition-colors whitespace-nowrap active:scale-[0.98]"
         >
-          <Calendar className="w-3.5 h-3.5" />
+          <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-500" />
           <span>زمان‌بندی</span>
         </button>
 
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onFitRoute();
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100/80 hover:bg-emerald-50 transition-colors"
+          title="نمایش کل مسیر خط روی نقشه"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100/80 hover:bg-emerald-50 transition-colors whitespace-nowrap active:scale-[0.98]"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span>نمایش کل مسیر</span>
+          <Maximize2 className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+          <span>کل مسیر</span>
         </button>
       </div>
     </div>

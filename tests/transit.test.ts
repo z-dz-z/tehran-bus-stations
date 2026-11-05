@@ -80,6 +80,9 @@ describe('Static Transit Data Validation', () => {
     expect(st1001[0]).toBe('بلوار ارتش');
     expect(typeof st1001[1]).toBe('number'); // lon
     expect(typeof st1001[2]).toBe('number'); // lat
+    // Verify precision: Station coordinates maintain sub-meter precision (8 decimal places)
+    expect(st1001[1]).toBeCloseTo(51.53100029, 7);
+    expect(st1001[2]).toBeCloseTo(35.79244929, 7);
 
     // Verify sample route
     const sampleRoute = data.routes[routeKeys[0]];
@@ -90,6 +93,10 @@ describe('Static Transit Data Validation', () => {
     expect(Array.isArray(sampleRoute.path)).toBe(true);
     if (sampleRoute.path.length > 0) {
       expect(sampleRoute.path[0].length).toBe(2);
+      // Route vertices retain full precision without premature truncation
+      const [vLon, vLat] = sampleRoute.path[0];
+      expect(typeof vLon).toBe('number');
+      expect(typeof vLat).toBe('number');
     }
   });
 });
