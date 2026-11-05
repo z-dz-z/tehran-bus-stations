@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { X, Clock, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 import type { RouteData, TimetableResponse, TimetableSlot } from '../types';
 import { fetchStationTimetable } from '../api/transitApi';
 import { toPersianDigits } from '../utils/format';
@@ -18,8 +18,10 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
   onClose,
 }) => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [data, setData] = useState<TimetableResponse | null>(null);
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   useEffect(() => {
     let isCancelled = false;
@@ -27,18 +29,34 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
 
     async function load() {
       setLoading(true);
-      const res = await fetchStationTimetable(
-        stationCode,
-        route.code,
-        route.dir,
-        controller.signal
-      );
-      if (!isCancelled) {
-        setData(res);
-        if (res && typeof res.CurrentDayType === 'number') {
-          setActiveTab(res.CurrentDayType);
+      setError(false);
+      try {
+        const res = await fetchStationTimetable(
+          stationCode,
+          route.code,
+          route.dir,
+          controller.signal
+        );
+        if (!isCancelled) {
+          if (res) {
+            setData(res);
+            if (
+              typeof res.CurrentDayType === 'number' &&
+              res.CurrentDayType >= 0 &&
+              res.CurrentDayType <= 2
+            ) {
+              setActiveTab(res.CurrentDayType);
+            }
+          } else {
+            setError(true);
+          }
+          setLoading(false);
         }
-        setLoading(false);
+      } catch (err: unknown) {
+        if (!isCancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(true);
+          setLoading(false);
+        }
       }
     }
 
@@ -48,12 +66,24 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
       isCancelled = true;
       controller.abort();
     };
-  }, [stationCode, route.code, route.dir]);
+  }, [stationCode, route.code, route.dir, reloadTrigger]);
 
-  // Current time in minutes from midnight for highlighting next bus
+  // Current time in minutes from midnight in Tehran time zone for highlighting next bus
   const currentMinutes = useMemo(() => {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Tehran',
+        hour: 'numeric',
+        minute: 'numeric',
+        hourCycle: 'h23',
+      }).formatToParts(new Date());
+      const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+      const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+      return h * 60 + m;
+    } catch {
+      const now = new Date();
+      return now.getHours() * 60 + now.getMinutes();
+    }
   }, []);
 
   const currentSlots: TimetableSlot[] = useMemo(() => {
@@ -78,6 +108,15 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
     }
     return -1;
   }, [data, activeTab, currentSlots, currentMinutes]);
+
+  const isTodayEnded = useMemo(() => {
+    return Boolean(
+      data &&
+      data.CurrentDayType === activeTab &&
+      nextSlotIndex === -1 &&
+      currentSlots.length > 0
+    );
+  }, [data, activeTab, nextSlotIndex, currentSlots.length]);
 
   return (
     <div
@@ -152,7 +191,24 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
             </div>
           )}
 
-          {!loading && currentSlots.length === 0 && (
+          {!loading && error && (
+            <div className="py-10 flex flex-col items-center justify-center text-center gap-3 text-slate-500">
+              <AlertCircle className="w-8 h-8 text-rose-500" />
+              <span className="text-xs font-semibold text-slate-700">
+                خطا در برقراری ارتباط و دریافت برنامه زمان‌بندی
+              </span>
+              <button
+                type="button"
+                onClick={() => setReloadTrigger((prev) => prev + 1)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                تلاش مجدد
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && currentSlots.length === 0 && (
             <div className="py-10 flex flex-col items-center justify-center text-center gap-2 text-slate-400">
               <AlertCircle className="w-8 h-8 text-slate-300" />
               <span className="text-xs font-medium">
@@ -164,14 +220,21 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
             </div>
           )}
 
-          {!loading && currentSlots.length > 0 && (
+          {!loading && !error && currentSlots.length > 0 && (
             <div>
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1 gap-2">
+                <span className="flex items-center gap-1 shrink-0">
                   <Clock className="w-3.5 h-3.5" />
                   زمان‌های حرکت از ایستگاه
                 </span>
-                <span>تعداد: {toPersianDigits(currentSlots.length)} نوبت</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isTodayEnded && (
+                    <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full font-medium truncate">
+                      حرکت‌های امروز پایان یافته است
+                    </span>
+                  )}
+                  <span className="shrink-0">تعداد: {toPersianDigits(currentSlots.length)} نوبت</span>
+                </div>
               </div>
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                 {currentSlots.map((slot, idx) => {

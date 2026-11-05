@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { toPersianDigits, toEnglishDigits, normalizePersianText, formatETA } from '../src/utils/format';
-import { fetchBusStopETA, fetchStationTimetable } from '../src/api/transitApi';
+import { fetchBusStopETA, fetchStationTimetable, normalizeDirection } from '../src/api/transitApi';
 
 describe('Format Utilities', () => {
   it('converts English digits to Persian digits correctly', () => {
@@ -112,14 +112,42 @@ describe('Live Transit API Integration', () => {
     }
   });
 
-  it('fetches BusStationStaticTimeTable for station 1001', async () => {
-    const timetable = await fetchStationTimetable(1001, 301, '82');
-    if (timetable) {
-      expect(timetable).toHaveProperty('CurrentDayType');
-      expect(timetable).toHaveProperty('Normal');
-      expect(timetable).toHaveProperty('HalfHoliday');
-      expect(timetable).toHaveProperty('Holiday');
+  it('fetches BusStationStaticTimeTable for station 1001 with non-empty slots', async () => {
+    // Both '82' (database representation) and 'R' (ASCII char) should work
+    const timetableFromNumeric = await fetchStationTimetable(1001, 301, '82');
+    expect(timetableFromNumeric).not.toBeNull();
+    if (timetableFromNumeric) {
+      expect(timetableFromNumeric).toHaveProperty('CurrentDayType');
+      expect(Array.isArray(timetableFromNumeric.Normal)).toBe(true);
+      expect(timetableFromNumeric.Normal.length).toBeGreaterThan(0);
+      expect(timetableFromNumeric.Normal[0]).toHaveProperty('StaticTime');
     }
+
+    const timetableFromChar = await fetchStationTimetable(1001, 301, 'R');
+    expect(timetableFromChar).not.toBeNull();
+    if (timetableFromChar) {
+      expect(timetableFromChar.Normal.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('Direction Normalization', () => {
+  it('converts ASCII numeric codes to character strings', () => {
+    expect(normalizeDirection('66')).toBe('B');
+    expect(normalizeDirection('82')).toBe('R');
+    expect(normalizeDirection(66)).toBe('B');
+    expect(normalizeDirection(82)).toBe('R');
+  });
+
+  it('preserves existing character directions', () => {
+    expect(normalizeDirection('B')).toBe('B');
+    expect(normalizeDirection('R')).toBe('R');
+    expect(normalizeDirection(' b ')).toBe('b');
+  });
+
+  it('handles empty or edge case inputs gracefully', () => {
+    expect(normalizeDirection('')).toBe('');
+    expect(normalizeDirection('   ')).toBe('');
   });
 });
 

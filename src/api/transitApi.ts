@@ -36,6 +36,17 @@ export async function fetchBusStopETA(
   }
 }
 
+export function normalizeDirection(dir: string | number): string {
+  const s = String(dir ?? '').trim();
+  const num = Number(s);
+  // Replicates original Android client: (char) cursor.getInt("Direction")
+  // Converts numeric ASCII code (e.g. 66 -> 'B', 82 -> 'R') to character.
+  if (!isNaN(num) && num > 0) {
+    return String.fromCharCode(num);
+  }
+  return s;
+}
+
 export async function fetchStationTimetable(
   stationCode: number,
   routeCode: number,
@@ -52,7 +63,7 @@ export async function fetchStationTimetable(
         StationCode: stationCode,
         Route: {
           RouteCode: routeCode,
-          Direction: direction,
+          Direction: normalizeDirection(direction),
         },
       }),
       signal,
