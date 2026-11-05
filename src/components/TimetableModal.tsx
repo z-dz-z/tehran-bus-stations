@@ -68,6 +68,17 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
     };
   }, [stationCode, route.code, route.dir, reloadTrigger]);
 
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   // Current time in minutes from midnight in Tehran time zone for highlighting next bus
   const currentMinutes = useMemo(() => {
     try {

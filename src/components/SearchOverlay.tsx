@@ -9,6 +9,9 @@ interface SearchOverlayProps {
   onSelectStation: (stationCode: number) => void;
   onSelectRoute: (route: RouteData) => void;
   onOpenChange?: (open: boolean) => void;
+  isOpen?: boolean;
+  onOpen?: () => void;
+  onClose?: () => void;
 }
 
 export const SearchOverlay: React.FC<SearchOverlayProps> = ({
@@ -16,21 +19,40 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   onSelectStation,
   onSelectRoute,
   onOpenChange,
+  isOpen: propIsOpen,
+  onOpen,
+  onClose,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const isControlled = propIsOpen !== undefined;
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = isControlled ? propIsOpen : internalIsOpen;
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleOpen = () => {
-    setIsOpen(true);
-    onOpenChange?.(true);
+    if (isControlled) {
+      onOpen?.();
+    } else {
+      setInternalIsOpen(true);
+      onOpenChange?.(true);
+    }
   };
 
-  const handleClose = () => {
-    setIsOpen(false);
+  const handleDismiss = () => {
     setQuery('');
-    onOpenChange?.(false);
+    if (isControlled) {
+      onClose?.();
+    } else {
+      setInternalIsOpen(false);
+      onOpenChange?.(false);
+    }
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery('');
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -42,12 +64,12 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        handleClose();
+        handleDismiss();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, handleDismiss]);
 
   const normalizedQuery = useMemo(() => {
     return normalizePersianText(query);
@@ -105,12 +127,16 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   const handleStationClick = (code: number) => {
     onSelectStation(code);
-    handleClose();
+    if (!isControlled) {
+      handleDismiss();
+    }
   };
 
   const handleRouteClick = (route: RouteData) => {
     onSelectRoute(route);
-    handleClose();
+    if (!isControlled) {
+      handleDismiss();
+    }
   };
 
   return (
@@ -131,7 +157,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
       {isOpen &&
         createPortal(
           <div
-            onClick={handleClose}
+            onClick={handleDismiss}
             className="fixed inset-0 z-50 flex flex-col bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150 pointer-events-auto"
           >
             <div
@@ -162,7 +188,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                 )}
                 <button
                   type="button"
-                  onClick={handleClose}
+                  onClick={handleDismiss}
                   className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl shrink-0 cursor-pointer"
                 >
                   بستن

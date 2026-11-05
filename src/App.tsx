@@ -11,6 +11,15 @@ import { StationSheet } from './components/StationSheet';
 import { TimetableModal } from './components/TimetableModal';
 import { Bus, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 
+// History navigation state interface
+interface NavigationHistoryState {
+  sheetOpen?: boolean;
+  modal?: 'timetable' | 'search' | null;
+  stop?: number | null;
+  route?: number | null;
+  canGoBack?: boolean;
+}
+
 export const App: React.FC = () => {
   const mapRef = useRef<TransitMapHandle>(null);
 
@@ -32,6 +41,20 @@ export const App: React.FC = () => {
 
   // Modals
   const [timetableRoute, setTimetableRoute] = useState<RouteData | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Tracking refs to avoid stale closures in window popstate listener
+  const selectedStationCodeRef = useRef<number | null>(selectedStationCode);
+  selectedStationCodeRef.current = selectedStationCode;
+
+  const activeRouteRef = useRef<RouteData | null>(activeRoute);
+  activeRouteRef.current = activeRoute;
+
+  const timetableRouteRef = useRef<RouteData | null>(timetableRoute);
+  timetableRouteRef.current = timetableRoute;
+
+  const isSearchOpenRef = useRef<boolean>(isSearchOpen);
+  isSearchOpenRef.current = isSearchOpen;
 
   // Favorites Hook
   const { favorites, isFavorite, toggleFavorite, removeFavorite } = useFavorites();
@@ -101,8 +124,8 @@ export const App: React.FC = () => {
     return transitData.routeStations[String(activeRoute.id)] || [];
   }, [transitData, activeRoute]);
 
-  // Handle URL query parameters syncing
-  const syncUrlParams = useCallback((stationCode: number | null, routeCode?: number | null) => {
+  // Helper to build URL with stop and route query params
+  const buildStationUrl = useCallback((stationCode: number | null, routeCode?: number | null) => {
     const url = new URL(window.location.href);
     if (stationCode !== null) {
       url.searchParams.set('stop', String(stationCode));
@@ -115,7 +138,7 @@ export const App: React.FC = () => {
       url.searchParams.delete('stop');
       url.searchParams.delete('route');
     }
-    window.history.replaceState({}, '', url.toString());
+    return url.toString();
   }, []);
 
   // Fetch Live ETA for a station
@@ -143,9 +166,11 @@ export const App: React.FC = () => {
 
   // Station Selection Trigger
   const handleSelectStation = useCallback(
-    (stationCode: number, targetRouteCode?: number) => {
+    (stationCode: number, targetRouteCode?: number, options?: { replace?: boolean }) => {
+      const isAlreadyOpen = selectedStationCodeRef.current !== null;
       setSelectedStationCode(stationCode);
       setIsSheetMinimized(false);
+      setIsSearchOpen(false);
 
       if (!transitData) return;
 
@@ -172,9 +197,25 @@ export const App: React.FC = () => {
       }
 
       setActiveRoute(targetRoute);
-      syncUrlParams(stationCode, targetRoute?.code);
+
+      const nextUrl = buildStationUrl(stationCode, targetRoute?.code);
+      const nextState: NavigationHistoryState = {
+        sheetOpen: true,
+        stop: stationCode,
+        route: targetRoute?.code,
+        canGoBack: options?.replace ? Boolean(window.history.state?.canGoBack) : true,
+      };
+
+      // Option A: If sheet was already open (or replace explicitly requested),
+      // replaceState so 1 Back button dismisses the sheet to the map.
+      // If opening sheet fresh from map, pushState so Back dismisses sheet!
+      if (isAlreadyOpen || options?.replace) {
+        window.history.replaceState(nextState, '', nextUrl);
+      } else {
+        window.history.pushState(nextState, '', nextUrl);
+      }
     },
-    [transitData, syncUrlParams, fetchETA]
+    [transitData, buildStationUrl]
   );
 
   // Auto-refresh ETA every 20 seconds while station is selected, plus on tab focus/visibility
@@ -218,7 +259,7 @@ export const App: React.FC = () => {
       const targetRouteCode = routeParam ? Number(routeParam) : undefined;
       // Delay slightly so map initializes
       setTimeout(() => {
-        handleSelectStation(code, targetRouteCode);
+        handleSelectStation(code, targetRouteCode, { replace: true });
       }, 350);
     }
   }, [transitData, initialLoading, handleSelectStation]);
@@ -227,8 +268,20 @@ export const App: React.FC = () => {
   const handleSelectRoute = useCallback(
     (route: RouteData) => {
       setActiveRoute(route);
-      if (selectedStationCode !== null) {
-        syncUrlParams(selectedStationCode, route.code);
+      setIsSearchOpen(false);
+      const currentStationCode = selectedStationCodeRef.current;
+      if (currentStationCode !== null) {
+        const nextUrl = buildStationUrl(currentStationCode, route.code);
+        window.history.replaceState(
+          {
+            sheetOpen: true,
+            stop: currentStationCode,
+            route: route.code,
+            canGoBack: Boolean(window.history.state?.canGoBack),
+          },
+          '',
+          nextUrl
+        );
       } else if (transitData) {
         // If no station was selected, find first station of this route
         const stationsOnRoute = transitData.routeStations[String(route.id)] || [];
@@ -241,18 +294,134 @@ export const App: React.FC = () => {
         }
       }
     },
-    [selectedStationCode, syncUrlParams, transitData, handleSelectStation]
+    [transitData, handleSelectStation, buildStationUrl]
   );
 
-  // Close Station Sheet
-  const handleCloseStation = useCallback(() => {
+  // Clear station React states
+  const clearStationState = useCallback(() => {
     setSelectedStationCode(null);
     setActiveRoute(null);
     setIsSheetMinimized(false);
     setEtaDataMap({});
     setLastUpdated(null);
-    syncUrlParams(null);
-  }, [syncUrlParams]);
+  }, []);
+
+  // Reset station state and URL parameters
+  const resetStationStateAndUrl = useCallback(() => {
+    clearStationState();
+    const nextUrl = buildStationUrl(null);
+    window.history.replaceState({ sheetOpen: false, stop: null, route: null }, '', nextUrl);
+  }, [clearStationState, buildStationUrl]);
+
+  // Close Station Sheet (called from UI 'X' button or sheet minimize/dismiss)
+  const handleCloseStation = useCallback(() => {
+    if (window.history.state?.canGoBack) {
+      window.history.back();
+    } else {
+      resetStationStateAndUrl();
+    }
+  }, [resetStationStateAndUrl]);
+
+  // Timetable modal controls with history back integration
+  const handleOpenTimetable = useCallback((rt: RouteData) => {
+    setTimetableRoute(rt);
+    window.history.pushState(
+      {
+        sheetOpen: true,
+        stop: selectedStationCodeRef.current,
+        route: rt.code,
+        modal: 'timetable',
+        canGoBack: true,
+      },
+      '',
+      window.location.href
+    );
+  }, []);
+
+  const handleCloseTimetable = useCallback(() => {
+    if (window.history.state?.modal === 'timetable') {
+      window.history.back();
+    } else {
+      setTimetableRoute(null);
+    }
+  }, []);
+
+  // Search overlay controls with history back integration
+  const handleOpenSearch = useCallback(() => {
+    setIsSearchOpen(true);
+    if (selectedStationCodeRef.current !== null) {
+      setIsSheetMinimized(true);
+    }
+    window.history.pushState(
+      {
+        sheetOpen: selectedStationCodeRef.current !== null,
+        stop: selectedStationCodeRef.current,
+        route: activeRouteRef.current?.code,
+        modal: 'search',
+        canGoBack: true,
+      },
+      '',
+      window.location.href
+    );
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    if (window.history.state?.modal === 'search') {
+      window.history.back();
+    } else {
+      setIsSearchOpen(false);
+    }
+  }, []);
+
+  // Set up browser back button navigation & deep link popstate synchronization
+  useEffect(() => {
+    // Initialize base history state on mount if null
+    if (!window.history.state) {
+      const params = new URLSearchParams(window.location.search);
+      const stopParam = params.get('stop');
+      const routeParam = params.get('route');
+      window.history.replaceState(
+        {
+          sheetOpen: Boolean(stopParam),
+          stop: stopParam ? Number(stopParam) : null,
+          route: routeParam ? Number(routeParam) : null,
+          canGoBack: false,
+        },
+        '',
+        window.location.href
+      );
+    }
+
+    const onPopState = (event: PopStateEvent) => {
+      const state = event.state as NavigationHistoryState | null;
+
+      // 1. Timetable modal was open and user pressed Back
+      if (timetableRouteRef.current !== null && (!state || state.modal !== 'timetable')) {
+        setTimetableRoute(null);
+        return;
+      }
+
+      // 2. Search overlay was open and user pressed Back
+      if (isSearchOpenRef.current && (!state || state.modal !== 'search')) {
+        setIsSearchOpen(false);
+        return;
+      }
+
+      // 3. Station sheet was open and user pressed Back (popped to map)
+      if (selectedStationCodeRef.current !== null && (!state || !state.sheetOpen)) {
+        clearStationState();
+        return;
+      }
+
+      // 4. Popped to another station (e.g. forward/backward navigation)
+      if (state?.sheetOpen && state.stop && state.stop !== selectedStationCodeRef.current) {
+        handleSelectStation(state.stop, state.route ?? undefined, { replace: true });
+      }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [clearStationState, handleSelectStation]);
 
   // Selected station metadata
   const selectedStationInfo = useMemo(() => {
@@ -342,11 +511,9 @@ export const App: React.FC = () => {
             transitData={transitData}
             onSelectStation={(code) => handleSelectStation(code)}
             onSelectRoute={(rt) => handleSelectRoute(rt)}
-            onOpenChange={(open) => {
-              if (open && selectedStationCode !== null) {
-                setIsSheetMinimized(true);
-              }
-            }}
+            isOpen={isSearchOpen}
+            onOpen={handleOpenSearch}
+            onClose={handleCloseSearch}
           />
         </div>
 
@@ -392,7 +559,7 @@ export const App: React.FC = () => {
             onRefreshETA={() => fetchETA(selectedStationInfo.code)}
             isFavorite={isFavorite}
             onToggleFavorite={handleToggleFavorite}
-            onOpenTimetable={(rt) => setTimetableRoute(rt)}
+            onOpenTimetable={(rt) => handleOpenTimetable(rt)}
             onFitRoute={(rt) => mapRef.current?.fitRouteBounds(rt.path)}
             lastUpdated={lastUpdated}
             isMinimized={isSheetMinimized}
@@ -407,7 +574,7 @@ export const App: React.FC = () => {
           stationCode={selectedStationInfo.code}
           stationName={selectedStationInfo.name}
           route={timetableRoute}
-          onClose={() => setTimetableRoute(null)}
+          onClose={handleCloseTimetable}
         />
       )}
     </div>
