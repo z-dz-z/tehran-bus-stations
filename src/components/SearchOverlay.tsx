@@ -56,7 +56,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 80);
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 80);
     }
   }, [isOpen]);
 
@@ -162,7 +162,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-white w-full max-w-xl mx-auto rounded-b-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border-b border-slate-200"
+              className="bg-white w-full max-w-xl mx-auto rounded-b-3xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden border-b border-slate-200"
             >
               {/* Input Bar */}
               <div className="p-3 sm:p-3.5 border-b border-slate-100 flex items-center gap-2">
@@ -196,7 +196,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
               </div>
 
               {/* Results Area */}
-              <div className="overflow-y-auto p-3 space-y-4 max-h-[70vh]">
+              <div className="overflow-y-auto p-3 space-y-4 max-h-[70dvh]">
                 {normalizedQuery.length < 2 && (
                   <div className="py-12 text-center text-slate-400 text-sm">
                     حداقل ۲ حرف یا عدد وارد کنید تا نتایج نمایش داده شوند.

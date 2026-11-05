@@ -304,6 +304,9 @@ export const App: React.FC = () => {
     setIsSheetMinimized(false);
     setEtaDataMap({});
     setLastUpdated(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
   }, []);
 
   // Reset station state and URL parameters
@@ -423,6 +426,24 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', onPopState);
   }, [clearStationState, handleSelectStation]);
 
+  // Ensure window scroll stays locked at (0, 0) on mobile browsers
+  useEffect(() => {
+    const resetScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    resetScroll();
+    window.addEventListener('scroll', resetScroll);
+    window.addEventListener('resize', resetScroll);
+    window.addEventListener('orientationchange', resetScroll);
+    return () => {
+      window.removeEventListener('scroll', resetScroll);
+      window.removeEventListener('resize', resetScroll);
+      window.removeEventListener('orientationchange', resetScroll);
+    };
+  }, []);
+
   // Selected station metadata
   const selectedStationInfo = useMemo(() => {
     if (!transitData || selectedStationCode === null) return null;
@@ -459,7 +480,7 @@ export const App: React.FC = () => {
 
   if (loadError) {
     return (
-      <div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+      <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
         <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
         <h1 className="text-lg font-bold mb-2">خطا در بارگذاری نقشه</h1>
         <p className="text-xs text-slate-400 mb-6 max-w-sm">{loadError}</p>
@@ -475,7 +496,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col bg-slate-100">
+    <div className="fixed inset-0 w-full h-full h-dvh overflow-hidden flex flex-col bg-slate-100">
       {/* Background Interactive WebGL Map */}
       <div className="absolute inset-0 z-0">
         <TransitMap
@@ -505,7 +526,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Top Floating Overlay (Search & Favorites) */}
-      <div className="absolute top-0 inset-x-0 z-20 p-3 sm:p-4 max-w-xl mx-auto w-full pointer-events-none flex flex-col gap-2">
+      <div className="absolute top-0 inset-x-0 z-20 p-3 sm:p-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))] max-w-xl mx-auto w-full pointer-events-none flex flex-col gap-2">
         <div className="pointer-events-auto">
           <SearchOverlay
             transitData={transitData}
@@ -532,8 +553,8 @@ export const App: React.FC = () => {
           selectedStationInfo
             ? isSheetMinimized
               ? 'bottom-20 sm:bottom-24'
-              : 'bottom-[calc(55vh+1rem)] sm:bottom-[calc(45vh+1rem)]'
-            : 'bottom-6 sm:bottom-8'
+              : 'bottom-[calc(55dvh+1rem)] sm:bottom-[calc(45dvh+1rem)]'
+            : 'bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] sm:bottom-8'
         }`}
       >
         <MapControls

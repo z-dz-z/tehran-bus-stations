@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, MapPin, Bus } from 'lucide-react';
+import { X, MapPin, Bus, ChevronDown, ChevronUp } from 'lucide-react';
 import type { RouteData, BusStopETARoute } from '../types';
 import { BusCard } from './BusCard';
 import { toPersianDigits } from '../utils/format';
@@ -78,40 +78,36 @@ export const StationSheet: React.FC<StationSheetProps> = ({
     touchStartY.current = null;
   };
 
-  // Scroll active card into view when activeRoute changes
+  // Scroll active card into view within the horizontal container when activeRoute changes
   useEffect(() => {
     if (isMinimized || !activeRoute || !scrollContainerRef.current) return;
-    const activeEl = scrollContainerRef.current.querySelector(
-      `[data-route-id="${activeRoute.id}"]`
-    ) as HTMLElement | null;
-    if (activeEl) {
-      activeEl.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
-    }
+    const container = scrollContainerRef.current;
+    const frameId = requestAnimationFrame(() => {
+      const activeEl = container.querySelector(
+        `[data-route-id="${activeRoute.id}"]`
+      ) as HTMLElement | null;
+      if (activeEl) {
+        const containerRect = container.getBoundingClientRect();
+        const elRect = activeEl.getBoundingClientRect();
+        const deltaX =
+          elRect.left + elRect.width / 2 - (containerRect.left + containerRect.width / 2);
+        if (Math.abs(deltaX) > 4) {
+          container.scrollBy({
+            left: deltaX,
+            behavior: 'smooth',
+          });
+        }
+      }
+    });
+    return () => cancelAnimationFrame(frameId);
   }, [activeRoute, isMinimized]);
 
   return (
     <div
       className={`w-full bg-white/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-slate-200/80 overflow-hidden pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col pointer-events-auto transition-all duration-300 ease-in-out ${
-        isMinimized ? 'max-h-24 pt-1.5' : 'max-h-[55vh] sm:max-h-[45vh] pt-2 sm:pt-3'
+        isMinimized ? 'max-h-20 pt-2.5 sm:pt-3' : 'max-h-[55dvh] sm:max-h-[45dvh] pt-3 sm:pt-3.5'
       }`}
     >
-      {/* Top Drag Handle Bar */}
-      <button
-        type="button"
-        onClick={() => setMinimizedState(!isMinimized)}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        aria-label={isMinimized ? 'نمایش اطلاعات ایستگاه' : 'کوچک‌کردن پنل ایستگاه'}
-        title={isMinimized ? 'برای گسترش لمس یا کلیک کنید' : 'برای بستن به پایین بکشید یا لمس کنید'}
-        className="w-full pt-1.5 pb-2 flex flex-col items-center justify-center cursor-pointer group touch-none select-none focus:outline-none"
-      >
-        <div className="w-10 h-1.5 bg-slate-300 group-hover:bg-slate-400 rounded-full transition-colors" />
-      </button>
-
       {/* Station Header Bar */}
       <div
         onTouchStart={handleTouchStart}
@@ -147,13 +143,23 @@ export const StationSheet: React.FC<StationSheetProps> = ({
           )}
         </div>
 
-        {/* Header Actions - Just Close Button */}
-        <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+        {/* Header Actions - Minimize/Expand & Close Buttons */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setMinimizedState(!isMinimized)}
+            title={isMinimized ? 'بزرگ‌کردن' : 'کوچک‌کردن'}
+            aria-label={isMinimized ? 'بزرگ‌کردن پنل ایستگاه' : 'کوچک‌کردن پنل ایستگاه'}
+            className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+          >
+            {isMinimized ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
           <button
             type="button"
             onClick={onClose}
             title="بستن"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            aria-label="بستن پنل ایستگاه"
+            className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
