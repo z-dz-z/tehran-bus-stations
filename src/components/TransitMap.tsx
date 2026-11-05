@@ -10,6 +10,7 @@ export interface TransitMapHandle {
   zoomOut: () => void;
   resetNorth: () => void;
   getMap: () => MapLibreMap | null;
+  resize: () => void;
 }
 
 interface TransitMapProps {
@@ -38,6 +39,12 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
     const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
     const [mapLoaded, setMapLoaded] = useState(false);
 
+    // Keep reference to latest stations GeoJSON
+    const stationsGeoJsonRef = useRef(stationsGeoJson);
+    useEffect(() => {
+      stationsGeoJsonRef.current = stationsGeoJson;
+    }, [stationsGeoJson]);
+
     // Fast coordinate lookup for stations by stationCode
     const stationCoordsMap = useMemo(() => {
       const map = new Map<number, [number, number]>();
@@ -62,7 +69,13 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       try {
         const status = maplibregl.getRTLTextPluginStatus();
         if (status === 'unavailable') {
-          const localPluginUrl = new URL('./mapbox-gl-rtl-text.js', window.location.href).href;
+          const path = window.location.pathname;
+          const dirPath = /\.[a-zA-Z0-9]+$/.test(path)
+            ? path.slice(0, path.lastIndexOf('/') + 1)
+            : path.endsWith('/')
+            ? path
+            : path + '/';
+          const localPluginUrl = new URL(`${dirPath}mapbox-gl-rtl-text.js`, window.location.origin).href;
           maplibregl.setRTLTextPlugin(localPluginUrl, true);
         }
       } catch (e) {
@@ -142,6 +155,9 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         mapRef.current?.resetNorth({ duration: 500 });
       },
       getMap: () => mapRef.current,
+      resize: () => {
+        mapRef.current?.resize();
+      },
     }));
 
     // Initialize Map
@@ -156,6 +172,10 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         minZoom: 8,
         maxZoom: 19,
         attributionControl: false,
+      });
+
+      map.on('error', (e) => {
+        console.warn('MapLibre error:', e.error);
       });
 
       const attributionControl = new maplibregl.AttributionControl({
@@ -189,6 +209,9 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
       });
 
       map.on('load', () => {
+        // Proactively force resize as soon as map style finishes loading
+        map.resize();
+
         // Hide road shield numbers (municipal street codes) that clutter Tehran OSM tiles
         ['highway-shield-non-us', 'highway-shield-us-interstate', 'road_shield_us'].forEach(
           (layerId) => {
@@ -210,7 +233,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         // 2. Add stations source
         map.addSource('stations-source', {
           type: 'geojson',
-          data: stationsGeoJson || {
+          data: stationsGeoJsonRef.current || {
             type: 'FeatureCollection',
             features: [],
           },
@@ -320,7 +343,45 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         setMapLoaded(true);
       });
 
+      // Set up a dedicated ResizeObserver that reliably resizes the canvas on any dimension change
+      const resizeObserver = new ResizeObserver(() => {
+        if (mapRef.current) {
+          mapRef.current.resize();
+        }
+      });
+      if (mapContainerRef.current) {
+        resizeObserver.observe(mapContainerRef.current);
+      }
+
+      // Schedule proactive resize triggers for layout passes and font loading
+      const rAF = requestAnimationFrame(() => {
+        map.resize();
+      });
+      const t1 = setTimeout(() => map.resize(), 100);
+      const t2 = setTimeout(() => map.resize(), 400);
+      const t3 = setTimeout(() => map.resize(), 1000);
+
+      // Handle tab visibility and mobile orientation changes
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && mapRef.current) {
+          mapRef.current.resize();
+        }
+      };
+      const handleOrientationChange = () => {
+        setTimeout(() => mapRef.current?.resize(), 150);
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('orientationchange', handleOrientationChange);
+
       return () => {
+        cancelAnimationFrame(rAF);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+        resizeObserver.disconnect();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('orientationchange', handleOrientationChange);
+
         hoverPopupRef.current?.remove();
         userMarkerRef.current?.remove();
         selectedPulseRef.current?.remove();
@@ -329,7 +390,7 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
         mapRef.current = null;
         setMapLoaded(false);
       };
-    }, [stationsGeoJson]);
+    }, []); // Map initializes once on mount
 
     // Update stations GeoJSON source if it arrived after map load
     useEffect(() => {
@@ -469,8 +530,12 @@ const TransitMap = forwardRef<TransitMapHandle, TransitMapProps>(
     }, [updateStationStyles]);
 
     return (
-      <div className="relative w-full h-full">
-        <div ref={mapContainerRef} className="w-full h-full" />
+      <div className="relative w-full h-full overflow-hidden" style={{ width: '100%', height: '100%' }}>
+        <div
+          ref={mapContainerRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
+        />
       </div>
     );
   }

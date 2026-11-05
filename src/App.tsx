@@ -288,22 +288,14 @@ export const App: React.FC = () => {
     handleSelectStation(fav.stationCode, fav.routeCode);
   };
 
-  if (initialLoading) {
-    return (
-      <div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6">
-        <div className="relative mb-6">
-          <div className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30 animate-bounce">
-            <Bus className="w-10 h-10 text-white" />
-          </div>
-        </div>
-        <h1 className="text-xl font-bold mb-2">اتوبوس تهران</h1>
-        <p className="text-xs text-slate-400 mb-6 font-medium">
-          در حال بارگذاری اطلاعات ایستگاه‌ها و خطوط...
-        </p>
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-      </div>
-    );
-  }
+  // Proactively trigger map resize when initial loading finishes
+  useEffect(() => {
+    if (!initialLoading) {
+      mapRef.current?.resize();
+      const t = setTimeout(() => mapRef.current?.resize(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [initialLoading]);
 
   if (loadError) {
     return (
@@ -335,6 +327,22 @@ export const App: React.FC = () => {
           onSelectStation={(code) => handleSelectStation(code)}
         />
       </div>
+
+      {/* Initial Loading Splash Screen Overlay */}
+      {initialLoading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900 text-white p-6 select-none">
+          <div className="relative mb-6">
+            <div className="w-20 h-20 rounded-3xl bg-emerald-600 flex items-center justify-center shadow-xl shadow-emerald-500/30 animate-bounce">
+              <Bus className="w-10 h-10 text-white" />
+            </div>
+          </div>
+          <h1 className="text-xl font-bold mb-2">اتوبوس تهران</h1>
+          <p className="text-xs text-slate-400 mb-6 font-medium">
+            در حال بارگذاری اطلاعات ایستگاه‌ها و خطوط...
+          </p>
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+        </div>
+      )}
 
       {/* Top Floating Overlay (Search & Favorites) */}
       <div className="absolute top-0 inset-x-0 z-20 p-3 sm:p-4 max-w-xl mx-auto w-full pointer-events-none flex flex-col gap-2">
