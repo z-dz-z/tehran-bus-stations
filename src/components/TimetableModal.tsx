@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Clock, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
-import type { RouteData, TimetableResponse, TimetableSlot } from '../types';
+import { DayType, type RouteData, type TimetableResponse, type TimetableSlot } from '../types';
 import { fetchStationTimetable } from '../api/transitApi';
 import { toPersianDigits } from '../utils/format';
+import {
+  getTehranDayType,
+  resolveCurrentDayType,
+  getTehranMinutes,
+  findNextSlotIndex,
+} from '../utils/timetable';
 
 interface TimetableModalProps {
   stationCode: number;
@@ -20,12 +26,15 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [data, setData] = useState<TimetableResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<number>(0);
+  const userSelectedTabRef = useRef(false);
+  const [activeTab, setActiveTab] = useState<DayType>(() => getTehranDayType());
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
   useEffect(() => {
     let isCancelled = false;
     const controller = new AbortController();
+    userSelectedTabRef.current = false;
+    setActiveTab(getTehranDayType());
 
     async function load() {
       setLoading(true);
@@ -40,12 +49,9 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
         if (!isCancelled) {
           if (res) {
             setData(res);
-            if (
-              typeof res.CurrentDayType === 'number' &&
-              res.CurrentDayType >= 0 &&
-              res.CurrentDayType <= 2
-            ) {
-              setActiveTab(res.CurrentDayType);
+            if (!userSelectedTabRef.current) {
+              const effectiveDay = resolveCurrentDayType(res.CurrentDayType);
+              setActiveTab(effectiveDay);
             }
           } else {
             setError(true);
@@ -68,6 +74,11 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
     };
   }, [stationCode, route.code, route.dir, reloadTrigger]);
 
+  const handleTabSelect = (tab: DayType) => {
+    userSelectedTabRef.current = true;
+    setActiveTab(tab);
+  };
+
   // Handle escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -81,53 +92,36 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
 
   // Current time in minutes from midnight in Tehran time zone for highlighting next bus
   const currentMinutes = useMemo(() => {
-    try {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Tehran',
-        hour: 'numeric',
-        minute: 'numeric',
-        hourCycle: 'h23',
-      }).formatToParts(new Date());
-      const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
-      const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
-      return h * 60 + m;
-    } catch {
-      const now = new Date();
-      return now.getHours() * 60 + now.getMinutes();
-    }
+    return getTehranMinutes();
   }, []);
+
+  // Effective current day type (server DayType or fallback to Tehran timezone)
+  const currentDayType = useMemo(() => {
+    return resolveCurrentDayType(data?.CurrentDayType);
+  }, [data]);
 
   const currentSlots: TimetableSlot[] = useMemo(() => {
     if (!data) return [];
-    if (activeTab === 0) return data.Normal || [];
-    if (activeTab === 1) return data.HalfHoliday || [];
-    if (activeTab === 2) return data.Holiday || [];
+    if (activeTab === DayType.NORMAL) return data.Normal || [];
+    if (activeTab === DayType.HALF_HOLIDAY) return data.HalfHoliday || [];
+    if (activeTab === DayType.HOLIDAY) return data.Holiday || [];
     return [];
   }, [data, activeTab]);
 
   // Find next upcoming time index for current active day type
   const nextSlotIndex = useMemo(() => {
-    if (!data || data.CurrentDayType !== activeTab) return -1;
-    for (let i = 0; i < currentSlots.length; i++) {
-      const parts = currentSlots[i].StaticTime.split(':');
-      if (parts.length >= 2) {
-        const slotMins = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-        if (slotMins >= currentMinutes) {
-          return i;
-        }
-      }
-    }
-    return -1;
-  }, [data, activeTab, currentSlots, currentMinutes]);
+    if (!data || currentDayType !== activeTab) return -1;
+    return findNextSlotIndex(currentSlots, currentMinutes);
+  }, [data, currentDayType, activeTab, currentSlots, currentMinutes]);
 
   const isTodayEnded = useMemo(() => {
     return Boolean(
       data &&
-      data.CurrentDayType === activeTab &&
+      currentDayType === activeTab &&
       nextSlotIndex === -1 &&
       currentSlots.length > 0
     );
-  }, [data, activeTab, nextSlotIndex, currentSlots.length]);
+  }, [data, currentDayType, activeTab, nextSlotIndex, currentSlots.length]);
 
   return (
     <div
@@ -162,9 +156,9 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
         {/* Day Tabs */}
         <div className="flex border-b border-slate-100 bg-slate-100/60 p-1 m-3 rounded-2xl">
           <button
-            onClick={() => setActiveTab(0)}
+            onClick={() => handleTabSelect(DayType.NORMAL)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-              activeTab === 0
+              activeTab === DayType.NORMAL
                 ? 'bg-white text-emerald-700 shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -172,9 +166,9 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
             شنبه تا چهارشنبه
           </button>
           <button
-            onClick={() => setActiveTab(1)}
+            onClick={() => handleTabSelect(DayType.HALF_HOLIDAY)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-              activeTab === 1
+              activeTab === DayType.HALF_HOLIDAY
                 ? 'bg-white text-emerald-700 shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -182,9 +176,9 @@ export const TimetableModal: React.FC<TimetableModalProps> = ({
             پنجشنبه‌ها
           </button>
           <button
-            onClick={() => setActiveTab(2)}
+            onClick={() => handleTabSelect(DayType.HOLIDAY)}
             className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-              activeTab === 2
+              activeTab === DayType.HOLIDAY
                 ? 'bg-white text-emerald-700 shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}

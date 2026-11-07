@@ -31,13 +31,20 @@ export interface BusStopETARoute {
   Details: BusStopETADetail[];
 }
 
+export enum DayType {
+  NONE = 0,
+  NORMAL = 1,        // شنبه تا چهارشنبه (Saturday to Wednesday)
+  HALF_HOLIDAY = 2,  // پنجشنبه‌ها (Thursdays)
+  HOLIDAY = 3,       // جمعه و تعطیلات (Fridays & Public Holidays)
+}
+
 export interface TimetableSlot {
   StaticTime: string;
 }
 
 export interface TimetableResponse {
   ValidUntil: number;
-  CurrentDayType: number; // 0 = Normal, 1 = HalfHoliday, 2 = Holiday
+  CurrentDayType: DayType | number; // 1 = Normal, 2 = HalfHoliday, 3 = Holiday
   Normal: TimetableSlot[];
   HalfHoliday: TimetableSlot[];
   Holiday: TimetableSlot[];
